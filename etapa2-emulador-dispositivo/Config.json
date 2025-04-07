@@ -1,0 +1,9 @@
+{
+    "devaddr": "26011BDB",
+    "nwkskey": "00112233445566778899AABBCCDDEEFF",
+    "appskey": "AABBCCDDEEFF00112233445566778899",
+    "fcnt": 1,
+    "fport": 1,
+    "payload": [24, 55]
+  }
+  

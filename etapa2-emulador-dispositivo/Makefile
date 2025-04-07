@@ -2,9 +2,9 @@
 TARGET = Main.exe
 
 # Arquivos fonte
-SRC = Main.c
+SRC = main.c lorawan.c aes_cmac.c
 
-# Compilador
+# Compilador (ajustado para seu caminho no MSYS2)
 CC = /c/msys64/mingw64/bin/gcc.exe
 
 # Flags de compilação
@@ -12,10 +12,12 @@ CFLAGS = -fdiagnostics-color=always -g
 
 # Diretórios de inclusão e bibliotecas
 INCLUDES = -I/c/msys64/mingw64/include
+
+# Diretórios de linkagem
 LDFLAGS = -L/c/msys64/mingw64/lib
 
 # Bibliotecas para linkagem
-LIBS = -lmbedtls -lmbedcrypto -lmbedx509
+LIBS = -lmbedtls -lmbedcrypto -lmbedx509 -lcurl
 
 # Regra padrão
 all: $(TARGET)
