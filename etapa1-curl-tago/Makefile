@@ -1,27 +1,29 @@
 # Nome do executável
-TARGET = Main
+TARGET = Main.exe
 
-# Compilador e flags
-CC = gcc
-CFLAGS = -Wall -Wextra -g -fdiagnostics-color=always
+# Arquivos fonte
+SRC = Main.c
 
-# Caminhos de includes e libs
-INCLUDES = -I"C:/msys64/mingw64/include"
-LIBS = -L"C:/msys64/mingw64/lib" -lcurl
+# Compilador
+CC = /c/msys64/mingw64/bin/gcc.exe
 
-# Fonte
-SRCS = Main.c
-OBJS = $(SRCS:.c=.o)
+# Flags de compilação
+CFLAGS = -fdiagnostics-color=always -g
 
-# Compilação
-all: $(TARGET).exe
+# Diretórios de inclusão e bibliotecas
+INCLUDES = -I/c/msys64/mingw64/include
+LDFLAGS = -L/c/msys64/mingw64/lib
 
-$(TARGET).exe: $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(INCLUDES) $(LIBS)
+# Bibliotecas para linkagem
+LIBS = -lcurl
 
-# Limpar
+# Regra padrão
+all: $(TARGET)
+
+# Regra de compilação
+$(TARGET): $(SRC)
+	$(CC) $(CFLAGS) $(INCLUDES) $(SRC) -o $(TARGET) $(LDFLAGS) $(LIBS)
+
+# Limpeza dos arquivos gerados
 clean:
-	rm -f *.o *.exe
-
-# Recompilar do zero
-rebuild: clean all
+	rm -f $(TARGET)
