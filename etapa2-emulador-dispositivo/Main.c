@@ -3,9 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <cjson/cJSON.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 
 // Headers dos nossos módulos
 #include "lorawan.h"
@@ -110,13 +111,13 @@ int send_to_ttn(const uint8_t *packet, int packet_len) {
     printf("Enviando pacote para o TTN...\n");
     if (sendto(sockfd, packet, packet_len, 0, res->ai_addr, res->ai_addrlen) < 0) {
         perror("Erro ao enviar pacote");
-        closesocket(sockfd);
+        close(sockfd);
         freeaddrinfo(res);
         return -1;
     }
     printf("Pacote enviado para o TTN com sucesso!\n");
 
-    closesocket(sockfd);
+    close(sockfd);
     freeaddrinfo(res);
     return 0;
 }
@@ -124,20 +125,10 @@ int send_to_ttn(const uint8_t *packet, int packet_len) {
 int main() {
     printf("[LoRaWAN] Simulador de dispositivo iniciado\n");
 
-    // Inicializar o Winsock
-    printf("Inicializando o Winsock...\n");
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        printf("Erro ao inicializar o Winsock\n");
-        return 1;
-    }
-    printf("Winsock inicializado com sucesso.\n");
-
     Config cfg;
     printf("Carregando configurações do arquivo Config.json...\n");
     if (!load_config("Config.json", &cfg)) {
         printf("Erro ao carregar o arquivo Config.json\n");
-        WSACleanup(); // Finalizar o Winsock em caso de erro
         return 1;
     }
     printf("Configurações carregadas com sucesso.\n");
@@ -152,7 +143,6 @@ int main() {
 
     if (packet_len <= 0) {
         printf("Erro ao montar pacote LoRaWAN\n");
-        WSACleanup(); // Finalizar o Winsock em caso de erro
         return 1;
     }
     printf("Pacote montado com sucesso.\n");
@@ -162,7 +152,6 @@ int main() {
     int mic_len = lorawan_append_mic(packet, packet_len, cfg.devaddr, cfg.fcnt, cfg.nwkskey);
     if (mic_len != 4) {
         printf("Erro ao calcular MIC\n");
-        WSACleanup(); // Finalizar o Winsock em caso de erro
         return 1;
     }
     packet_len += mic_len;
@@ -178,7 +167,6 @@ int main() {
     // Enviar pacote para o TTN
     if (send_to_ttn(packet, packet_len) != 0) {
         printf("Erro ao enviar pacote para o TTN\n");
-        WSACleanup(); // Finalizar o Winsock em caso de erro
         return 1;
     }
 
@@ -190,15 +178,9 @@ int main() {
     printf("Salvando o novo valor de fcnt no Config.json...\n");
     if (!save_config("Config.json", &cfg)) {
         printf("Erro ao salvar o arquivo Config.json\n");
-        WSACleanup();
         return 1;
     }
     printf("Config.json atualizado com sucesso.\n");
-
-    // Finalizar o Winsock
-    printf("Finalizando o Winsock...\n");
-    WSACleanup();
-    printf("Winsock finalizado com sucesso.\n");
 
     return 0;
 }
