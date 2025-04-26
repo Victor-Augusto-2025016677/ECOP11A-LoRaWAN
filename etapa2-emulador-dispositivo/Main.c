@@ -3,23 +3,102 @@
 #include <stdlib.h>
 #include <string.h>
 #include <cjson/cJSON.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <unistd.h>
 
 // Headers dos nossos módulos
 #include "lorawan.h"
 #include "aes_cmac.h"
 #include "config.h"
 
+// Função para salvar o Config.json atualizado
+int save_config(const char *filename, const Config *cfg) {
+    FILE *file = fopen(filename, "w");
+    if (!file) {
+        perror("Erro ao abrir o arquivo para escrita");
+        return 0;
+    }
+
+    cJSON *json = cJSON_CreateObject();
+
+    // Adicionar deveui
+    cJSON_AddStringToObject(json, "deveui", cfg->deveui);
+
+    // Converter devaddr para string e adicionar ao JSON
+    char devaddr_str[9]; // 8 caracteres + '\0'
+    snprintf(devaddr_str, sizeof(devaddr_str), "%08X", cfg->devaddr);
+    cJSON_AddStringToObject(json, "devaddr", devaddr_str);
+
+    // Adicionar nwkskey e appskey como strings hexadecimais
+    char nwkskey_str[33], appskey_str[33];
+    for (int i = 0; i < 16; i++) {
+        snprintf(&nwkskey_str[i * 2], 3, "%02X", cfg->nwkskey[i]);
+        snprintf(&appskey_str[i * 2], 3, "%02X", cfg->appskey[i]);
+    }
+    cJSON_AddStringToObject(json, "nwkskey", nwkskey_str);
+    cJSON_AddStringToObject(json, "appskey", appskey_str);
+
+    // Adicionar outros campos
+    cJSON_AddNumberToObject(json, "fcnt", cfg->fcnt);
+    cJSON_AddNumberToObject(json, "fport", cfg->fport);
+
+    // Criar array de payload (convertendo uint8_t para int)
+    int payload_int[64];
+    for (int i = 0; i < cfg->payload_len; i++) {
+        payload_int[i] = (int)cfg->payload[i];
+    }
+    cJSON *payload = cJSON_CreateIntArray(payload_int, cfg->payload_len);
+    if (payload == NULL) {
+        perror("Erro ao criar array de payload");
+        cJSON_Delete(json);
+        fclose(file);
+        return 0;
+    }
+    cJSON_AddItemToObject(json, "payload", payload);
+
+    // Converter JSON para string e salvar no arquivo
+    char *json_string = cJSON_Print(json);
+    if (json_string == NULL) {
+        perror("Erro ao converter JSON para string");
+        cJSON_Delete(json);
+        fclose(file);
+        return 0;
+    }
+    fprintf(file, "%s", json_string);
+
+    // Limpar memória
+    fclose(file);
+    cJSON_Delete(json);
+    free(json_string);
+
+    return 1;
+}
+
 int main() {
     printf("[LoRaWAN] Simulador de dispositivo iniciado\n");
 
-    Config cfg;
-    if (!load_config("Config.json", &cfg)) {
-        printf("Erro ao carregar o arquivo Config.json\n");
+    // Inicializar o Winsock
+    printf("Inicializando o Winsock...\n");
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        printf("Erro ao inicializar o Winsock\n");
         return 1;
     }
+    printf("Winsock inicializado com sucesso.\n");
+
+    Config cfg;
+    printf("Carregando configurações do arquivo Config.json...\n");
+    if (!load_config("Config.json", &cfg)) {
+        printf("Erro ao carregar o arquivo Config.json\n");
+        WSACleanup(); // Finalizar o Winsock em caso de erro
+        return 1;
+    }
+    printf("Configurações carregadas com sucesso.\n");
 
     // Buffer para montar o pacote
     uint8_t packet[64];
+    printf("Montando o pacote LoRaWAN...\n");
     int packet_len = lorawan_build_uplink(
         packet, cfg.devaddr, cfg.nwkskey, cfg.appskey,
         cfg.fcnt, cfg.fport, cfg.payload, cfg.payload_len
@@ -27,16 +106,21 @@ int main() {
 
     if (packet_len <= 0) {
         printf("Erro ao montar pacote LoRaWAN\n");
+        WSACleanup(); // Finalizar o Winsock em caso de erro
         return 1;
     }
+    printf("Pacote montado com sucesso.\n");
 
-    // Adicionar MIC no final do pacote (opcional, se não foi incluso na função acima)
+    // Adicionar MIC no final do pacote
+    printf("Calculando o MIC...\n");
     int mic_len = lorawan_append_mic(packet, packet_len, cfg.devaddr, cfg.fcnt, cfg.nwkskey);
     if (mic_len != 4) {
         printf("Erro ao calcular MIC\n");
+        WSACleanup(); // Finalizar o Winsock em caso de erro
         return 1;
     }
     packet_len += mic_len;
+    printf("MIC calculado com sucesso.\n");
 
     // Exibir pacote final em hexadecimal
     printf("Pacote LoRaWAN com MIC (hex):\n");
@@ -44,6 +128,31 @@ int main() {
         printf("%02X ", packet[i]);
     }
     printf("\n");
+
+    // Enviar pacote para o TTN
+    if (send_to_ttn(packet, packet_len) != 0) {
+        printf("Erro ao enviar pacote para o TTN\n");
+        WSACleanup(); // Finalizar o Winsock em caso de erro
+        return 1;
+    }
+
+    // Incrementar o contador de frames (fcnt)
+    printf("Incrementando o contador de frames (fcnt)...\n");
+    cfg.fcnt += 1;
+
+    // Salvar o novo valor de fcnt no Config.json
+    printf("Salvando o novo valor de fcnt no Config.json...\n");
+    if (!save_config("Config.json", &cfg)) {
+        printf("Erro ao salvar o arquivo Config.json\n");
+        WSACleanup();
+        return 1;
+    }
+    printf("Config.json atualizado com sucesso.\n");
+
+    // Finalizar o Winsock
+    printf("Finalizando o Winsock...\n");
+    WSACleanup();
+    printf("Winsock finalizado com sucesso.\n");
 
     return 0;
 }
