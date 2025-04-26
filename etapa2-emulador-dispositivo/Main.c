@@ -12,6 +12,9 @@
 #include "aes_cmac.h"
 #include "config.h"
 
+// Declaração da função send_to_ttn
+int send_to_ttn(const uint8_t *packet, int packet_len);
+
 // Função para salvar o Config.json atualizado
 int save_config(const char *filename, const Config *cfg) {
     FILE *file = fopen(filename, "w");
@@ -73,6 +76,49 @@ int save_config(const char *filename, const Config *cfg) {
     free(json_string);
 
     return 1;
+}
+
+// Implementação da função send_to_ttn
+int send_to_ttn(const uint8_t *packet, int packet_len) {
+    int sockfd;
+    struct sockaddr_in server_addr;
+    struct addrinfo hints, *res;
+
+    // Configurar hints para resolução de DNS
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET; // IPv4
+    hints.ai_socktype = SOCK_DGRAM; // UDP
+
+    printf("Resolvendo o hostname do servidor TTN...\n");
+    if (getaddrinfo("nam1.cloud.thethings.network", "1700", &hints, &res) != 0) {
+        perror("Erro ao resolver o hostname do servidor TTN");
+        return -1;
+    }
+    printf("Hostname resolvido com sucesso.\n");
+
+    // Criar socket UDP
+    printf("Criando socket UDP...\n");
+    sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (sockfd < 0) {
+        perror("Erro ao criar socket");
+        freeaddrinfo(res);
+        return -1;
+    }
+    printf("Socket criado com sucesso.\n");
+
+    // Enviar pacote
+    printf("Enviando pacote para o TTN...\n");
+    if (sendto(sockfd, packet, packet_len, 0, res->ai_addr, res->ai_addrlen) < 0) {
+        perror("Erro ao enviar pacote");
+        closesocket(sockfd);
+        freeaddrinfo(res);
+        return -1;
+    }
+    printf("Pacote enviado para o TTN com sucesso!\n");
+
+    closesocket(sockfd);
+    freeaddrinfo(res);
+    return 0;
 }
 
 int main() {

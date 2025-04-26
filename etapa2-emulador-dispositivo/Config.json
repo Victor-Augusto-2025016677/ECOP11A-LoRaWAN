@@ -1,9 +1,9 @@
 {
-  "deveui": "70B3D57ED0070356",
-  "devaddr": "260C00D1",
-  "nwkskey": "62F55BB83188BD297AA3861896050288",
-  "appskey": "17437230CD7F11EEC2BBA6E12E93E2F2",
-  "fcnt": 7,
-  "fport": 10,
-  "payload": [99, 123]
+	"deveui":	"",
+	"devaddr":	"260CECBA",
+	"nwkskey":	"A8811AA4AF7702185FC3ABD07FF3C3CD",
+	"appskey":	"ED3FD17362220C5B95C867AC42C2CB29",
+	"fcnt":	1,
+	"fport":	10,
+	"payload":	[99, 123]
 }
