@@ -13,10 +13,14 @@
 #include "aes_cmac.h"
 #include "config.h"
 
+<<<<<<< HEAD
 // Declaração da função send_to_ttn
 int send_to_ttn(const uint8_t *packet, int packet_len);
 
 
+=======
+// Função para salvar o Config.json atualizado
+>>>>>>> parent of 52c0483 (Criando outro dispositivo pq o 1° eu desisti de arrumar)
 int save_config(const char *filename, const Config *cfg) {
     FILE *file = fopen(filename, "w");
     if (!file) {
@@ -72,6 +76,7 @@ int save_config(const char *filename, const Config *cfg) {
     return 1;
 }
 
+<<<<<<< HEAD
 int send_to_ttn(const uint8_t *packet, int packet_len) {
     int sockfd;
     struct sockaddr_in server_addr;
@@ -111,6 +116,8 @@ int send_to_ttn(const uint8_t *packet, int packet_len) {
     return 0;
 }
 
+=======
+>>>>>>> parent of 52c0483 (Criando outro dispositivo pq o 1° eu desisti de arrumar)
 int main() {
     printf("[LoRaWAN] Simulador de dispositivo iniciado\n");
 
