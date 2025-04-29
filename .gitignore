@@ -50,4 +50,6 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
-etapa1-curl-tago/nul
+
+# Exceção para incluir a biblioteca mbedtls
+!etapa2-emulador-dispositivo/mbedtls/
