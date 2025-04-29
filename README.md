@@ -91,7 +91,7 @@ Criar um código em C que envie 2 variáveis para o TagoIO via TTN (simulado).
 
 Entrega: 1 de abril de 2025
 
-Etapa 2 – Emulador de Dispositivo LoRaWAN
+(✅ +~-) Etapa 2 – Emulador de Dispositivo LoRaWAN
 Implementação da montagem e envio de pacotes LoRaWAN com criptografia.
 Simulação de uplinks com configuração por JSON.
 
