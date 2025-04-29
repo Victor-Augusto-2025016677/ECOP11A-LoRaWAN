@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200112L
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -7,20 +8,18 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 
 // Headers dos nossos módulos
 #include "lorawan.h"
 #include "aes_cmac.h"
-#include "config.h"
+#include "Config.h"
 
-<<<<<<< HEAD
 // Declaração da função send_to_ttn
 int send_to_ttn(const uint8_t *packet, int packet_len);
 
 
-=======
 // Função para salvar o Config.json atualizado
->>>>>>> parent of 52c0483 (Criando outro dispositivo pq o 1° eu desisti de arrumar)
 int save_config(const char *filename, const Config *cfg) {
     FILE *file = fopen(filename, "w");
     if (!file) {
@@ -76,7 +75,6 @@ int save_config(const char *filename, const Config *cfg) {
     return 1;
 }
 
-<<<<<<< HEAD
 int send_to_ttn(const uint8_t *packet, int packet_len) {
     int sockfd;
     struct sockaddr_in server_addr;
@@ -115,9 +113,6 @@ int send_to_ttn(const uint8_t *packet, int packet_len) {
     freeaddrinfo(res);
     return 0;
 }
-
-=======
->>>>>>> parent of 52c0483 (Criando outro dispositivo pq o 1° eu desisti de arrumar)
 int main() {
     printf("[LoRaWAN] Simulador de dispositivo iniciado\n");
 
@@ -128,6 +123,27 @@ int main() {
         return 1;
     }
     printf("Configurações carregadas com sucesso.\n");
+
+    // Depuração: Exibindo os valores carregados do Config.json
+    printf("Debug: DEVEUI: %s\n", cfg.deveui);
+    printf("Debug: DEVADDR: %08X\n", cfg.devaddr);
+    printf("Debug: NWKSKEY: ");
+    for (int i = 0; i < 16; i++) {
+        printf("%02X", cfg.nwkskey[i]);
+    }
+    printf("\n");
+    printf("Debug: APPSKEY: ");
+    for (int i = 0; i < 16; i++) {
+        printf("%02X", cfg.appskey[i]);
+    }
+    printf("\n");
+    printf("Debug: FCNT: %d\n", cfg.fcnt);
+    printf("Debug: FPORT: %d\n", cfg.fport);
+    printf("Debug: PAYLOAD: ");
+    for (int i = 0; i < cfg.payload_len; i++) {
+        printf("%02X ", cfg.payload[i]);
+    }
+    printf("\n");
 
     uint8_t packet[64];
     printf("Montando o pacote LoRaWAN...\n");
@@ -142,7 +158,20 @@ int main() {
     }
     printf("Pacote montado com sucesso.\n");
 
+    // Depuração: Exibindo o pacote montado
+    printf("Debug: Pacote montado (hex): ");
+    for (int i = 0; i < packet_len; i++) {
+        printf("%02X ", packet[i]);
+    }
+    printf("\n");
+
     printf("Calculando o MIC...\n");
+    printf("Debug: Antes de calcular o MIC (packet_len=%d): ", packet_len);
+    for (int i = 0; i < packet_len; i++) {
+        printf("%02X ", packet[i]);
+    }
+    printf("\n");
+
     int mic_len = lorawan_append_mic(packet, packet_len, cfg.devaddr, cfg.fcnt, cfg.nwkskey);
     if (mic_len != 4) {
         printf("Erro ao calcular MIC\n");
@@ -151,12 +180,12 @@ int main() {
     packet_len += mic_len;
     printf("MIC calculado com sucesso.\n");
 
-    printf("Pacote LoRaWAN com MIC (hex):\n");
+    // Depuração: Exibindo o pacote com o MIC
+    printf("Debug: Pacote com MIC (hex): ");
     for (int i = 0; i < packet_len; i++) {
         printf("%02X ", packet[i]);
     }
     printf("\n");
-
 
     if (send_to_ttn(packet, packet_len) != 0) {
         printf("Erro ao enviar pacote para o TTN\n");

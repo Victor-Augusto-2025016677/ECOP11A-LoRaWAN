@@ -2,13 +2,14 @@
 #define AES_CMAC_H
 
 #include <stdint.h>
+#include <stddef.h> // Para o tipo size_t
 
 // Função genérica: AES-128 CMAC (usada internamente)
 int aes128_cmac(
-    const uint8_t key[16],
+    const uint8_t *key,
     const uint8_t *input,
-    uint16_t len,
-    uint8_t mac[16]
+    size_t length,
+    uint8_t *output
 );
 
 // Função específica para LoRaWAN: calcula e adiciona o MIC no final do pacote

@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define MBEDTLS_CIPHER_MODE_CMAC 1
+
 #define MAX_PAYLOAD_SIZE 64
 
 typedef struct {
