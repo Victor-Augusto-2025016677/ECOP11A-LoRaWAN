@@ -1,12 +1,12 @@
 {
 	"end_device_ids":	{
-		"device_id":	"my-device-id",
+		"device_id":	"lorawan-simu1",
 		"application_ids":	{
-			"application_id":	"my-app-id"
+			"application_id":	"lorawan-unifei"
 		}
 	},
 	"uplink_message":	{
 		"f_port":	1,
-		"frm_payload":	"QLrsDCYACQAKw838Wif3P/+ctQ=="
+		"frm_payload":	"QLrsDCYADgAKFR8n1keVbryF1A=="
 	}
 }
