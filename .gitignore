@@ -53,7 +53,3 @@ dkms.conf
 
 # Exceção para incluir a biblioteca mbedtls
 !etapa2-emulador-dispositivo/mbedtls/
-
-# Exceção para incluir o diretório cJSON
-!cJSON/
-!cJSON/**
