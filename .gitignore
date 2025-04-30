@@ -51,5 +51,6 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-# Exceção para incluir a biblioteca mbedtls
+# Exceção para incluir a biblioteca mbedtls & cJSON
 !etapa2-emulador-dispositivo/mbedtls/
+!cJSON/
