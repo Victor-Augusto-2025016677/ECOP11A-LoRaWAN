@@ -78,41 +78,37 @@ int save_config(const char *filename, const Config *cfg) {
 int send_to_ttn(const uint8_t *packet, int packet_len) {
     int sockfd;
     struct sockaddr_in server_addr;
-    struct addrinfo hints, *res;
-
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET; // IPv4
-    hints.ai_socktype = SOCK_DGRAM; // UDP
-
-    printf("Resolvendo o hostname do servidor TTN...\n");
-    if (getaddrinfo("nam1.cloud.thethings.network", "1700", &hints, &res) != 0) {
-        perror("Erro ao resolver o hostname do servidor TTN");
-        return -1;
-    }
-    printf("Hostname resolvido com sucesso.\n");
 
     printf("Criando socket UDP...\n");
-    sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
         perror("Erro ao criar socket");
-        freeaddrinfo(res);
         return -1;
     }
     printf("Socket criado com sucesso.\n");
 
-    printf("Enviando pacote para o TTN...\n");
-    if (sendto(sockfd, packet, packet_len, 0, res->ai_addr, res->ai_addrlen) < 0) {
-        perror("Erro ao enviar pacote");
+    // Configurando o endereço do servidor (127.0.0.1:1700)
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(1700);
+    if (inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr) <= 0) {
+        perror("Erro ao configurar o endereço do servidor");
         close(sockfd);
-        freeaddrinfo(res);
         return -1;
     }
-    printf("Pacote enviado para o TTN com sucesso!\n");
+
+    printf("Enviando pacote para o servidor local (127.0.0.1:1700)...\n");
+    if (sendto(sockfd, packet, packet_len, 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Erro ao enviar pacote");
+        close(sockfd);
+        return -1;
+    }
+    printf("Pacote enviado para o servidor local com sucesso!\n");
 
     close(sockfd);
-    freeaddrinfo(res);
     return 0;
 }
+
 int main() {
     printf("[LoRaWAN] Simulador de dispositivo iniciado\n");
 
