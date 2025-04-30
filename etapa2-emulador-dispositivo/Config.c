@@ -1,69 +1,91 @@
-#include "Config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <cjson/cJSON.h>
+#include "Config.h"
 
-static void hexstr_to_bytes(const char *hex, uint8_t *out, size_t len) {
-    for (size_t i = 0; i < len; i++) {
-        sscanf(&hex[i * 2], "%2hhx", &out[i]);
-    }
-}
-
-int load_config(const char *filename, Config *config) {
-    FILE *f = fopen(filename, "rb");
-    if (!f) {
-        perror("Erro ao abrir o arquivo JSON");
+int load_config(const char *filename, Config *cfg) {
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Erro ao abrir o arquivo Config.json");
         return 0;
     }
 
-    fseek(f, 0, SEEK_END);
-    long length = ftell(f);
-    fseek(f, 0, SEEK_SET);
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    rewind(file);
 
-    char *data = malloc(length + 1);
-    if (!data) {
-        fclose(f);
+    char *file_content = (char *)malloc(file_size + 1);
+    if (!file_content) {
+        perror("Erro ao alocar memória para o conteúdo do arquivo");
+        fclose(file);
         return 0;
     }
-    fread(data, 1, length, f);
-    data[length] = '\0';
-    fclose(f);
 
-    cJSON *json = cJSON_Parse(data);
-    free(data);
+    fread(file_content, 1, file_size, file);
+    file_content[file_size] = '\0';
+    fclose(file);
+
+    cJSON *json = cJSON_Parse(file_content);
+    free(file_content);
+
     if (!json) {
-        printf("Erro ao fazer parse do JSON\n");
+        printf("Erro ao analisar o JSON: %s\n", cJSON_GetErrorPtr());
         return 0;
     }
 
-    const cJSON *devaddr = cJSON_GetObjectItem(json, "devaddr");
-    const cJSON *nwkskey = cJSON_GetObjectItem(json, "nwkskey");
-    const cJSON *appskey = cJSON_GetObjectItem(json, "appskey");
-    const cJSON *fcnt = cJSON_GetObjectItem(json, "fcnt");
-    const cJSON *fport = cJSON_GetObjectItem(json, "fport");
-    const cJSON *payload = cJSON_GetObjectItem(json, "payload");
-
-    if (!cJSON_IsString(devaddr) || !cJSON_IsString(nwkskey) || !cJSON_IsString(appskey)
-        || !cJSON_IsNumber(fcnt) || !cJSON_IsNumber(fport) || !cJSON_IsArray(payload)) {
+    // Carrega o DEVEUI
+    cJSON *deveui = cJSON_GetObjectItemCaseSensitive(json, "deveui");
+    if (cJSON_IsString(deveui) && (deveui->valuestring != NULL)) {
+        strncpy(cfg->deveui, deveui->valuestring, sizeof(cfg->deveui) - 1);
+        cfg->deveui[sizeof(cfg->deveui) - 1] = '\0'; // Garante terminação
+    } else {
+        printf("Erro: Campo 'deveui' ausente ou inválido no Config.json\n");
         cJSON_Delete(json);
-        printf("JSON mal formatado\n");
         return 0;
     }
 
-    sscanf(devaddr->valuestring, "%x", &config->devaddr);
-    hexstr_to_bytes(nwkskey->valuestring, config->nwkskey, 16);
-    hexstr_to_bytes(appskey->valuestring, config->appskey, 16);
-    config->fcnt = (uint16_t)fcnt->valueint;
-    config->fport = (uint8_t)fport->valueint;
+    // Carrega os outros campos (exemplo: devaddr, nwkskey, appskey, etc.)
+    cJSON *devaddr = cJSON_GetObjectItemCaseSensitive(json, "devaddr");
+    if (cJSON_IsString(devaddr) && (devaddr->valuestring != NULL)) {
+        cfg->devaddr = strtoul(devaddr->valuestring, NULL, 16);
+    }
 
-    int len = cJSON_GetArraySize(payload);
-    if (len > MAX_PAYLOAD_SIZE) len = MAX_PAYLOAD_SIZE;
-    config->payload_len = len;
-    for (int i = 0; i < len; i++) {
-        cJSON *item = cJSON_GetArrayItem(payload, i);
-        config->payload[i] = (uint8_t)(cJSON_IsNumber(item) ? item->valueint : 0);
+    cJSON *nwkskey = cJSON_GetObjectItemCaseSensitive(json, "nwkskey");
+    if (cJSON_IsString(nwkskey) && (nwkskey->valuestring != NULL)) {
+        for (int i = 0; i < 16; i++) {
+            sscanf(&nwkskey->valuestring[i * 2], "%2hhx", &cfg->nwkskey[i]);
+        }
+    }
+
+    cJSON *appskey = cJSON_GetObjectItemCaseSensitive(json, "appskey");
+    if (cJSON_IsString(appskey) && (appskey->valuestring != NULL)) {
+        for (int i = 0; i < 16; i++) {
+            sscanf(&appskey->valuestring[i * 2], "%2hhx", &cfg->appskey[i]);
+        }
+    }
+
+    cJSON *fcnt = cJSON_GetObjectItemCaseSensitive(json, "fcnt");
+    if (cJSON_IsNumber(fcnt)) {
+        cfg->fcnt = fcnt->valueint;
+    }
+
+    cJSON *fport = cJSON_GetObjectItemCaseSensitive(json, "fport");
+    if (cJSON_IsNumber(fport)) {
+        cfg->fport = fport->valueint;
+    }
+
+    cJSON *payload = cJSON_GetObjectItemCaseSensitive(json, "payload");
+    if (cJSON_IsArray(payload)) {
+        int payload_len = cJSON_GetArraySize(payload);
+        cfg->payload_len = payload_len > 64 ? 64 : payload_len;
+        for (int i = 0; i < cfg->payload_len; i++) {
+            cJSON *item = cJSON_GetArrayItem(payload, i);
+            if (cJSON_IsNumber(item)) {
+                cfg->payload[i] = (uint8_t)item->valueint;
+            }
+        }
     }
 
     cJSON_Delete(json);

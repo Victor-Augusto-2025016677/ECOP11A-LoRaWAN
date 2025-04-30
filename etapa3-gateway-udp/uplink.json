@@ -1,0 +1,12 @@
+{
+	"end_device_ids":	{
+		"device_id":	"my-device-id",
+		"application_ids":	{
+			"application_id":	"my-app-id"
+		}
+	},
+	"uplink_message":	{
+		"f_port":	1,
+		"frm_payload":	"QLrsDCYACQAKw838Wif3P/+ctQ=="
+	}
+}

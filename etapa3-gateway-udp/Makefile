@@ -19,7 +19,7 @@ LDFLAGS = -L/usr/lib/x86_64-linux-gnu
 
 
 # Bibliotecas para linkedição
-LIBS =
+LIBS = -lmbedtls -lmbedcrypto -lmbedx509 -lcjson
 
 
 # Regra padrão para compilar o programa

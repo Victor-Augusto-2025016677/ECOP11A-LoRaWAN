@@ -141,6 +141,13 @@ int main() {
     }
     printf("\n");
 
+    // Proteção: Verifica se o DEVEUI foi alterado
+    const char *expected_deveui = "70B3D57ED007035A";
+    if (strcmp(cfg.deveui, expected_deveui) != 0) {
+        printf("Erro: DEVEUI foi alterado inesperadamente! Valor atual: %s\n", cfg.deveui);
+        return 1;
+    }
+
     uint8_t packet[64];
     printf("Montando o pacote LoRaWAN...\n");
     int packet_len = lorawan_build_uplink(
