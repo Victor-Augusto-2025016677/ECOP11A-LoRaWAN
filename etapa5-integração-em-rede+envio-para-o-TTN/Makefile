@@ -11,7 +11,7 @@ CFLAGS = -fdiagnostics-color=always -g -Wall -Wextra
 INCLUDES = -Iinclude -I/usr/include
 
 # Diretórios de linkedição
-LDFLAGS = -L/usr/lib/x86_64-linux-gnu
+LDFLAGS = -L/usr/lib/x86_64-linux-gnu -L/usr/local/lib
 
 # Bibliotecas para linkedição
 LIBS = -lmbedtls -lmbedcrypto -lmbedx509 -lcjson -lcurl -lwebsockets
