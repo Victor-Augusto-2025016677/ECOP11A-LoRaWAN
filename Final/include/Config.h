@@ -1,11 +1,12 @@
+
 #ifndef CONFIG_H
 #define CONFIG_H
 
 #include <stdint.h>
 
 #define MBEDTLS_CIPHER_MODE_CMAC 1
-
 #define MAX_PAYLOAD_SIZE 64
+#define MAX_DEVICES 10 // Suporte para até 10 dispositivos
 
 typedef struct {
     char deveui[17];
@@ -18,7 +19,6 @@ typedef struct {
     uint8_t payload_len;
 } Config;
 
-int load_config(const char *filename, Config *config);
-int save_config(const char *filename, const Config *config);
+int load_config(const char *filename, Config *configs, int *device_count);
 
 #endif // CONFIG_H

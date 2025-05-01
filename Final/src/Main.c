@@ -1,4 +1,3 @@
-#define _POSIX_C_SOURCE 200112L
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -17,10 +16,11 @@
 
 // Declaração da função send_to_ttn
 int send_to_ttn(const uint8_t *packet, int packet_len);
+int save_config(const char *filename, const Config *configs, int device_count);
 
 
 // Função para salvar o Config.json atualizado
-int save_config(const char *filename, const Config *cfg) {
+int save_config(const char *filename, const Config *configs, int device_count) {
     // Carregar o JSON original
     FILE *file = fopen(filename, "r");
     if (!file) {
@@ -51,8 +51,21 @@ int save_config(const char *filename, const Config *cfg) {
         return 0;
     }
 
-    // Atualizar os campos necessários
-    cJSON_ReplaceItemInObject(json, "fcnt", cJSON_CreateNumber(cfg->fcnt));
+    cJSON *devices = cJSON_GetObjectItemCaseSensitive(json, "devices");
+    if (!cJSON_IsArray(devices)) {
+        printf("Erro: 'devices' não é um array no Config.json\n");
+        cJSON_Delete(json);
+        return 0;
+    }
+
+    for (int i = 0; i < device_count; i++) {
+        cJSON *device = cJSON_GetArrayItem(devices, i);
+        if (!cJSON_IsObject(device)) {
+            continue;
+        }
+
+        cJSON_ReplaceItemInObject(device, "fcnt", cJSON_CreateNumber(configs[i].fcnt));
+    }
 
     // Salvar o JSON atualizado
     file = fopen(filename, "w");
@@ -116,98 +129,53 @@ int send_to_ttn(const uint8_t *packet, int packet_len) {
 int main() {
     printf("[LoRaWAN] Simulador de dispositivo iniciado\n");
 
-    Config cfg;
-    printf("Carregando configurações do arquivo config/Config.json...\n");
-    if (!load_config("config/Config.json", &cfg)) {
-        printf("Erro ao carregar o arquivo config/Config.json\n");
+    Config configs[MAX_DEVICES];
+    int device_count = 0;
+
+    printf("Carregando configurações do arquivo Config.json...\n");
+    if (!load_config("config/Config.json", configs, &device_count)) {
+        printf("Erro ao carregar o arquivo Config.json\n");
         return 1;
     }
-    printf("Configurações carregadas com sucesso.\n");
+    printf("Configurações carregadas com sucesso. Dispositivos encontrados: %d\n", device_count);
 
-    // Depuração: Exibindo os valores carregados do Config.json
-    printf("Debug: DEVEUI: %s\n", cfg.deveui);
-    printf("Debug: DEVADDR: %08X\n", cfg.devaddr);
-    printf("Debug: NWKSKEY: ");
-    for (int i = 0; i < 16; i++) {
-        printf("%02X", cfg.nwkskey[i]);
-    }
-    printf("\n");
-    printf("Debug: APPSKEY: ");
-    for (int i = 0; i < 16; i++) {
-        printf("%02X", cfg.appskey[i]);
-    }
-    printf("\n");
-    printf("Debug: FCNT: %d\n", cfg.fcnt);
-    printf("Debug: FPORT: %d\n", cfg.fport);
-    printf("Debug: PAYLOAD: ");
-    for (int i = 0; i < cfg.payload_len; i++) {
-        printf("%02X ", cfg.payload[i]);
-    }
-    printf("\n");
+    for (int i = 0; i < device_count; i++) {
+        Config *cfg = &configs[i];
 
-    // Proteção: Verifica se o DEVEUI foi alterado
-    const char *expected_deveui = "70B3D57ED007035A";
-    if (strcmp(cfg.deveui, expected_deveui) != 0) {
-        printf("Erro: DEVEUI foi alterado inesperadamente! Valor atual: %s\n", cfg.deveui);
-        return 1;
+        printf("Montando o pacote para o dispositivo %d (DevEUI: %s)...\n", i + 1, cfg->deveui);
+
+        uint8_t packet[64];
+        int packet_len = lorawan_build_uplink(
+            packet, cfg->devaddr, cfg->nwkskey, cfg->appskey,
+            cfg->fcnt, cfg->fport, cfg->payload, cfg->payload_len
+        );
+
+        if (packet_len <= 0) {
+            printf("Erro ao montar pacote para o dispositivo %d\n", i + 1);
+            continue;
+        }
+
+        // Exibir o pacote em formato hexadecimal
+        printf("Pacote montado para o dispositivo %d: ", i + 1);
+        for (int j = 0; j < packet_len; j++) {
+            printf("%02X ", packet[j]);
+        }
+        printf("\n");
+
+        printf("Enviando pacote para o dispositivo %d...\n", i + 1);
+        if (send_to_ttn(packet, packet_len) != 0) {
+            printf("Erro ao enviar pacote para o dispositivo %d\n", i + 1);
+            continue;
+        }
+
+        printf("Pacote enviado com sucesso para o dispositivo %d!\n", i + 1);
+        cfg->fcnt += 1; // Incrementa o contador de frames
+
+        // Salvar o valor atualizado de fcnt no arquivo JSON
+        if (!save_config("config/Config.json", configs, device_count)) {
+            printf("Erro ao salvar o arquivo Config.json para o dispositivo %d\n", i + 1);
+        }
     }
-
-    uint8_t packet[64];
-    printf("Montando o pacote LoRaWAN...\n");
-    int packet_len = lorawan_build_uplink(
-        packet, cfg.devaddr, cfg.nwkskey, cfg.appskey,
-        cfg.fcnt, cfg.fport, cfg.payload, cfg.payload_len
-    );
-
-    if (packet_len <= 0) {
-        printf("Erro ao montar pacote LoRaWAN\n");
-        return 1;
-    }
-    printf("Pacote montado com sucesso.\n");
-
-    // Depuração: Exibindo o pacote montado
-    printf("Debug: Pacote montado (hex): ");
-    for (int i = 0; i < packet_len; i++) {
-        printf("%02X ", packet[i]);
-    }
-    printf("\n");
-
-    printf("Calculando o MIC...\n");
-    printf("Debug: Antes de calcular o MIC (packet_len=%d): ", packet_len);
-    for (int i = 0; i < packet_len; i++) {
-        printf("%02X ", packet[i]);
-    }
-    printf("\n");
-
-    int mic_len = lorawan_append_mic(packet, packet_len, cfg.devaddr, cfg.fcnt, cfg.nwkskey);
-    if (mic_len != 4) {
-        printf("Erro ao calcular MIC\n");
-        return 1;
-    }
-    packet_len += mic_len;
-    printf("MIC calculado com sucesso.\n");
-
-    // Depuração: Exibindo o pacote com o MIC
-    printf("Debug: Pacote com MIC (hex): ");
-    for (int i = 0; i < packet_len; i++) {
-        printf("%02X ", packet[i]);
-    }
-    printf("\n");
-
-    if (send_to_ttn(packet, packet_len) != 0) {
-        printf("Erro ao enviar pacote para o TTN\n");
-        return 1;
-    }
-
-    printf("Incrementando o contador de frames (fcnt)...\n");
-    cfg.fcnt += 1;
-
-    printf("Salvando o novo valor de fcnt no config/Config.json...\n");
-    if (!save_config("config/Config.json", &cfg)) {
-        printf("Erro ao salvar o arquivo config/Config.json\n");
-        return 1;
-    }
-    printf("Config.json atualizado com sucesso.\n");
 
     return 0;
 }
