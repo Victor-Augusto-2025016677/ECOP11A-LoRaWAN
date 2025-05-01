@@ -20,10 +20,14 @@ uint16_t generate_token() {
 
 // Função para encapsular o pacote no formato Semtech UDP Packet Forwarder
 int encapsulate_semtech_packet(uint8_t *output_buffer, size_t buffer_size, const char *json_payload, const uint8_t *gateway_eui) {
-    if (buffer_size < 12 + strlen(json_payload)) {
-        printf("Erro: Buffer insuficiente para encapsular o pacote.\n");
+    // Verificar se o buffer é suficiente para o cabeçalho e o payload
+    if (strlen(json_payload) > buffer_size - 12) {
+        printf("Erro: Payload JSON excede o tamanho máximo permitido.\n");
         return -1;
     }
+
+    // Inicializar o buffer
+    memset(output_buffer, 0, buffer_size);
 
     // Cabeçalho do pacote
     output_buffer[0] = PROTOCOL_VERSION; // Versão do protocolo
@@ -36,7 +40,7 @@ int encapsulate_semtech_packet(uint8_t *output_buffer, size_t buffer_size, const
     memcpy(&output_buffer[4], gateway_eui, 8);
 
     // Payload (JSON)
-    strcpy((char *)&output_buffer[12], json_payload);
+    snprintf((char *)&output_buffer[12], buffer_size - 12, "%s", json_payload);
 
     return 12 + strlen(json_payload); // Retorna o tamanho total do pacote
 }
@@ -84,9 +88,7 @@ int load_devices(const char *filename, cJSON **devices) {
 
 // Função para enviar confirmação de recebimento (ACK)
 void send_ack(int sockfd, struct sockaddr_in *client_addr, socklen_t addr_len) {
-    char ack_message[64] = {0}; // Zera o buffer antes de usá-lo
-    strcpy(ack_message, "ACK"); // Copia a mensagem "ACK" para o buffer
-
+    char ack_message[4] = "ACK"; // Mensagem fixa de ACK
     ssize_t sent_len = sendto(sockfd, ack_message, strlen(ack_message), 0,
                               (struct sockaddr *)client_addr, addr_len);
     if (sent_len < 0) {
@@ -138,10 +140,6 @@ int main() {
     // Variável para contar pacotes processados
     int processed_count = 0;
 
-    // Identificador único do gateway (EUI-64)
-    uint8_t gateway_eui[8] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
-
-    // Loop principal para escutar pacotes
     while (processed_count < device_count) {
         // Receber pacote do dispositivo
         recv_len = recvfrom(sockfd, buffer, BUFFER_SIZE, 0,
@@ -152,7 +150,7 @@ int main() {
             continue;
         }
 
-        printf("\n[Gateway] Pacote recebido (%ld bytes) de %s:%d\n",
+        printf("[Gateway] Pacote recebido (%ld bytes) de %s:%d\n",
                recv_len,
                inet_ntoa(client_addr.sin_addr),
                ntohs(client_addr.sin_port));
@@ -164,29 +162,27 @@ int main() {
         }
         printf("\n");
 
-        // Converte o pacote para Base64
-        unsigned char base64_output[BASE64_BUFFER_SIZE];
-        size_t output_len;
-        int ret = mbedtls_base64_encode(base64_output, sizeof(base64_output), &output_len, buffer, recv_len);
-        if (ret != 0) {
-            printf("Erro ao codificar o pacote em Base64. Código de erro: %d\n", ret);
+        // Enviar confirmação de recebimento (ACK)
+        send_ack(sockfd, &client_addr, addr_len);
+
+        // Criar um objeto JSON para encapsular os dados
+        cJSON *root = cJSON_CreateObject();
+        if (!root) {
+            printf("Erro ao criar objeto JSON\n");
             continue;
         }
-        base64_output[output_len] = '\0';
 
-        // Cria o JSON de saída
-        cJSON *root = cJSON_CreateObject();
-        cJSON_AddStringToObject(root, "data", (char *)base64_output);
-        char *json_string = cJSON_Print(root);
-        if (json_string == NULL) {
-            printf("Erro ao converter JSON para string\n");
+        cJSON_AddStringToObject(root, "data", "example_payload");
+        char *json_string = cJSON_PrintUnformatted(root);
+        if (!json_string) {
+            printf("Erro ao criar string JSON\n");
             cJSON_Delete(root);
             continue;
         }
 
         // Encapsula o pacote no formato Semtech UDP Packet Forwarder
         uint8_t semtech_packet[BUFFER_SIZE];
-        int packet_len = encapsulate_semtech_packet(semtech_packet, sizeof(semtech_packet), json_string, gateway_eui);
+        int packet_len = encapsulate_semtech_packet(semtech_packet, sizeof(semtech_packet), json_string, buffer);
         if (packet_len < 0) {
             printf("Erro ao encapsular o pacote no formato Semtech UDP Packet Forwarder\n");
             free(json_string);
@@ -201,9 +197,6 @@ int main() {
             printf("[Gateway] Pacote encapsulado enviado com sucesso.\n");
         }
 
-        // Enviar confirmação de recebimento (ACK)
-        send_ack(sockfd, &client_addr, addr_len);
-
         free(json_string);
         cJSON_Delete(root);
 
@@ -214,6 +207,7 @@ int main() {
 
     printf("[Gateway] Todos os pacotes foram processados. Encerrando...\n");
 
+    // Liberar memória e fechar o socket
     cJSON_Delete(devices);
     close(sockfd);
     return 0;

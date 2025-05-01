@@ -196,16 +196,6 @@ int main() {
             // Aguardar o ACK do gateway
             ack_received = wait_for_ack(sockfd);
 
-            if (ack_received) {
-                printf("ACK recebido do gateway para o dispositivo %d.\n", i + 1);
-                cfg->fcnt += 1; // Incrementa o contador de frames
-
-                // Salvar o valor atualizado de fcnt no arquivo JSON
-                if (!save_config("config/Config.json", configs, device_count)) {
-                    printf("Erro ao salvar o arquivo Config.json para o dispositivo %d\n", i + 1);
-                }
-            }
-
             // Adicionar um delay antes de tentar novamente
             if (!ack_received) {
                 struct timespec delay;
@@ -213,6 +203,14 @@ int main() {
                 delay.tv_nsec = 0;         // 0 nanosegundos
                 nanosleep(&delay, NULL);   // Pausa a execução
             }
+        }
+
+        printf("ACK recebido do gateway para o dispositivo %d.\n", i + 1);
+        cfg->fcnt += 1; // Incrementa o contador de frames
+
+        // Salvar o valor atualizado de fcnt no arquivo JSON
+        if (!save_config("config/Config.json", configs, device_count)) {
+            printf("Erro ao salvar o arquivo Config.json para o dispositivo %d\n", i + 1);
         }
     }
 
