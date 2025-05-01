@@ -10,6 +10,36 @@
 #define PORT 1700
 #define BUFFER_SIZE 1024
 #define BASE64_BUFFER_SIZE ((BUFFER_SIZE + 2) / 3 * 4 + 1)
+#define PROTOCOL_VERSION 0x02
+#define PUSH_DATA 0x00
+
+// Função para gerar o token (2 bytes aleatórios)
+uint16_t generate_token() {
+    return (uint16_t)(rand() & 0xFFFF);
+}
+
+// Função para encapsular o pacote no formato Semtech UDP Packet Forwarder
+int encapsulate_semtech_packet(uint8_t *output_buffer, size_t buffer_size, const char *json_payload, const uint8_t *gateway_eui) {
+    if (buffer_size < 12 + strlen(json_payload)) {
+        printf("Erro: Buffer insuficiente para encapsular o pacote.\n");
+        return -1;
+    }
+
+    // Cabeçalho do pacote
+    output_buffer[0] = PROTOCOL_VERSION; // Versão do protocolo
+    uint16_t token = generate_token();
+    output_buffer[1] = (uint8_t)(token >> 8); // Token (byte alto)
+    output_buffer[2] = (uint8_t)(token & 0xFF); // Token (byte baixo)
+    output_buffer[3] = PUSH_DATA; // Tipo de pacote (PUSH_DATA)
+
+    // Identificador único do gateway (EUI-64)
+    memcpy(&output_buffer[4], gateway_eui, 8);
+
+    // Payload (JSON)
+    strcpy((char *)&output_buffer[12], json_payload);
+
+    return 12 + strlen(json_payload); // Retorna o tamanho total do pacote
+}
 
 // Função para carregar os dispositivos do Config.json
 int load_devices(const char *filename, cJSON **devices) {
@@ -52,6 +82,22 @@ int load_devices(const char *filename, cJSON **devices) {
     return 1;
 }
 
+// Função para enviar confirmação de recebimento (ACK)
+void send_ack(int sockfd, struct sockaddr_in *client_addr, socklen_t addr_len) {
+    char ack_message[64] = {0}; // Zera o buffer antes de usá-lo
+    strcpy(ack_message, "ACK"); // Copia a mensagem "ACK" para o buffer
+
+    ssize_t sent_len = sendto(sockfd, ack_message, strlen(ack_message), 0,
+                              (struct sockaddr *)client_addr, addr_len);
+    if (sent_len < 0) {
+        perror("[Gateway] Erro ao enviar ACK");
+    } else if (sent_len != (ssize_t)strlen(ack_message)) {
+        printf("[Gateway] Erro: ACK enviado parcialmente (%ld bytes).\n", sent_len);
+    } else {
+        printf("[Gateway] ACK enviado para o dispositivo.\n");
+    }
+}
+
 int main() {
     int sockfd;
     struct sockaddr_in server_addr, client_addr;
@@ -70,19 +116,17 @@ int main() {
     int device_count = cJSON_GetArraySize(devices);
     printf("[Gateway] Dispositivos encontrados: %d\n", device_count);
 
-    // Cria o socket UDP
+    // Configuração do socket
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("Erro ao criar socket");
         exit(EXIT_FAILURE);
     }
 
-    // Configura o endereço do servidor
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY; // aceita qualquer IP
+    server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(PORT);
 
-    // Associa o socket à porta
     if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("Erro ao fazer bind");
         close(sockfd);
@@ -94,13 +138,17 @@ int main() {
     // Variável para contar pacotes processados
     int processed_count = 0;
 
+    // Identificador único do gateway (EUI-64)
+    uint8_t gateway_eui[8] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
+
     // Loop principal para escutar pacotes
     while (processed_count < device_count) {
+        // Receber pacote do dispositivo
         recv_len = recvfrom(sockfd, buffer, BUFFER_SIZE, 0,
                             (struct sockaddr *)&client_addr, &addr_len);
 
         if (recv_len < 0) {
-            perror("Erro ao receber dados");
+            perror("[Gateway] Erro ao receber dados");
             continue;
         }
 
@@ -109,95 +157,55 @@ int main() {
                inet_ntoa(client_addr.sin_addr),
                ntohs(client_addr.sin_port));
 
-        printf("[Gateway] Conteúdo (hex):\n");
+        // Exibir o conteúdo do pacote recebido
+        printf("[Gateway] Conteúdo do pacote (hex): ");
         for (ssize_t i = 0; i < recv_len; ++i) {
             printf("%02X ", buffer[i]);
         }
         printf("\n");
 
         // Converte o pacote para Base64
-        unsigned char base64_output[BASE64_BUFFER_SIZE]; // Buffer para saída Base64
+        unsigned char base64_output[BASE64_BUFFER_SIZE];
         size_t output_len;
-
-        // Codificar o payload em Base64
         int ret = mbedtls_base64_encode(base64_output, sizeof(base64_output), &output_len, buffer, recv_len);
         if (ret != 0) {
             printf("Erro ao codificar o pacote em Base64. Código de erro: %d\n", ret);
             continue;
         }
-
-        // Adicionar o caractere nulo ao final da string Base64
         base64_output[output_len] = '\0';
 
-        // Exibir o resultado da codificação para depuração
-        printf("[Gateway] Payload codificado em Base64: %s\n", base64_output);
-
-        // Processa cada dispositivo
-        for (int i = 0; i < device_count; i++) {
-            cJSON *device = cJSON_GetArrayItem(devices, i);
-            if (!cJSON_IsObject(device)) {
-                continue;
-            }
-
-            // Extrai informações do dispositivo
-            const cJSON *device_id = cJSON_GetObjectItemCaseSensitive(device, "device_id");
-            const cJSON *application_id = cJSON_GetObjectItemCaseSensitive(device, "application_id");
-            const cJSON *fport = cJSON_GetObjectItemCaseSensitive(device, "fport");
-
-            if (!cJSON_IsString(device_id) || !cJSON_IsString(application_id) || !cJSON_IsNumber(fport)) {
-                printf("Erro: Dispositivo %d com dados inválidos no Config.json\n", i + 1);
-                continue;
-            }
-
-            // Cria o JSON de saída
-            cJSON *root = cJSON_CreateObject();
-            cJSON *end_device_ids = cJSON_CreateObject();
-            cJSON_AddStringToObject(end_device_ids, "device_id", device_id->valuestring);
-
-            cJSON *application_ids = cJSON_CreateObject();
-            cJSON_AddStringToObject(application_ids, "application_id", application_id->valuestring);
-            cJSON_AddItemToObject(end_device_ids, "application_ids", application_ids);
-
-            cJSON_AddItemToObject(root, "end_device_ids", end_device_ids);
-
-            cJSON *uplink_message = cJSON_CreateObject();
-            cJSON_AddNumberToObject(uplink_message, "f_port", fport->valueint);
-            cJSON_AddStringToObject(uplink_message, "frm_payload", (char *)base64_output);
-            cJSON_AddItemToObject(root, "uplink_message", uplink_message);
-
-            // Converte o JSON para string
-            char *json_string = cJSON_Print(root);
-            if (json_string == NULL) {
-                printf("Erro ao converter JSON para string\n");
-            } else {
-                printf("[Gateway] JSON gerado para o dispositivo %d:\n%s\n", i + 1, json_string);
-
-                // Salva o JSON em um arquivo
-                char filename[64];
-                snprintf(filename, sizeof(filename), "json_out/uplink_device_%d.json", i + 1);
-                FILE *file = fopen(filename, "w");
-                if (file == NULL) {
-                    perror("Erro ao abrir o arquivo para salvar o JSON");
-                } else {
-                    fprintf(file, "%s\n", json_string);
-                    fclose(file);
-                    printf("[Gateway] JSON salvo no arquivo '%s'\n", filename);
-                }
-
-                free(json_string);
-            }
-
+        // Cria o JSON de saída
+        cJSON *root = cJSON_CreateObject();
+        cJSON_AddStringToObject(root, "data", (char *)base64_output);
+        char *json_string = cJSON_Print(root);
+        if (json_string == NULL) {
+            printf("Erro ao converter JSON para string\n");
             cJSON_Delete(root);
+            continue;
+        }
+
+        // Encapsula o pacote no formato Semtech UDP Packet Forwarder
+        uint8_t semtech_packet[BUFFER_SIZE];
+        int packet_len = encapsulate_semtech_packet(semtech_packet, sizeof(semtech_packet), json_string, gateway_eui);
+        if (packet_len < 0) {
+            printf("Erro ao encapsular o pacote no formato Semtech UDP Packet Forwarder\n");
+            free(json_string);
+            cJSON_Delete(root);
+            continue;
+        }
+
+        // Envia o pacote encapsulado
+        if (sendto(sockfd, semtech_packet, packet_len, 0, (struct sockaddr *)&client_addr, addr_len) < 0) {
+            perror("Erro ao enviar pacote encapsulado");
+        } else {
+            printf("[Gateway] Pacote encapsulado enviado com sucesso.\n");
         }
 
         // Enviar confirmação de recebimento (ACK)
-        const char *ack_message = "ACK";
-        if (sendto(sockfd, ack_message, strlen(ack_message), 0,
-                   (struct sockaddr *)&client_addr, addr_len) < 0) {
-            perror("Erro ao enviar ACK");
-        } else {
-            printf("[Gateway] ACK enviado para o dispositivo.\n");
-        }
+        send_ack(sockfd, &client_addr, addr_len);
+
+        free(json_string);
+        cJSON_Delete(root);
 
         // Incrementa o contador de pacotes processados
         processed_count++;
