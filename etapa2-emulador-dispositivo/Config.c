@@ -1,11 +1,11 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <cjson/cJSON.h>
 #include "Config.h"
 
-int load_config(const char *filename, Config *cfg) {
+int load_config(const char *filename, Config *configs, int *device_count) {
     FILE *file = fopen(filename, "r");
     if (!file) {
         perror("Erro ao abrir o arquivo Config.json");
@@ -35,55 +35,71 @@ int load_config(const char *filename, Config *cfg) {
         return 0;
     }
 
-    // Carrega o DEVEUI
-    cJSON *deveui = cJSON_GetObjectItemCaseSensitive(json, "deveui");
-    if (cJSON_IsString(deveui) && (deveui->valuestring != NULL)) {
-        strncpy(cfg->deveui, deveui->valuestring, sizeof(cfg->deveui) - 1);
-        cfg->deveui[sizeof(cfg->deveui) - 1] = '\0'; // Garante terminação
-    } else {
-        printf("Erro: Campo 'deveui' ausente ou inválido no Config.json\n");
+    cJSON *devices = cJSON_GetObjectItemCaseSensitive(json, "devices");
+    if (!cJSON_IsArray(devices)) {
+        printf("Erro: 'devices' não é um array no Config.json\n");
         cJSON_Delete(json);
         return 0;
     }
 
-    // Carrega os outros campos (exemplo: devaddr, nwkskey, appskey, etc.)
-    cJSON *devaddr = cJSON_GetObjectItemCaseSensitive(json, "devaddr");
-    if (cJSON_IsString(devaddr) && (devaddr->valuestring != NULL)) {
-        cfg->devaddr = strtoul(devaddr->valuestring, NULL, 16);
+    *device_count = cJSON_GetArraySize(devices);
+    if (*device_count > MAX_DEVICES) {
+        printf("Aviso: Número de dispositivos excede o limite (%d). Apenas os primeiros %d serão carregados.\n", MAX_DEVICES, MAX_DEVICES);
+        *device_count = MAX_DEVICES;
     }
 
-    cJSON *nwkskey = cJSON_GetObjectItemCaseSensitive(json, "nwkskey");
-    if (cJSON_IsString(nwkskey) && (nwkskey->valuestring != NULL)) {
-        for (int i = 0; i < 16; i++) {
-            sscanf(&nwkskey->valuestring[i * 2], "%2hhx", &cfg->nwkskey[i]);
+    for (int i = 0; i < *device_count; i++) {
+        cJSON *device = cJSON_GetArrayItem(devices, i);
+        if (!cJSON_IsObject(device)) {
+            continue;
         }
-    }
 
-    cJSON *appskey = cJSON_GetObjectItemCaseSensitive(json, "appskey");
-    if (cJSON_IsString(appskey) && (appskey->valuestring != NULL)) {
-        for (int i = 0; i < 16; i++) {
-            sscanf(&appskey->valuestring[i * 2], "%2hhx", &cfg->appskey[i]);
+        Config *cfg = &configs[i];
+
+        cJSON *deveui = cJSON_GetObjectItemCaseSensitive(device, "deveui");
+        if (cJSON_IsString(deveui) && (deveui->valuestring != NULL)) {
+            strncpy(cfg->deveui, deveui->valuestring, sizeof(cfg->deveui) - 1);
+            cfg->deveui[sizeof(cfg->deveui) - 1] = '\0';
         }
-    }
 
-    cJSON *fcnt = cJSON_GetObjectItemCaseSensitive(json, "fcnt");
-    if (cJSON_IsNumber(fcnt)) {
-        cfg->fcnt = fcnt->valueint;
-    }
+        cJSON *devaddr = cJSON_GetObjectItemCaseSensitive(device, "devaddr");
+        if (cJSON_IsString(devaddr) && (devaddr->valuestring != NULL)) {
+            cfg->devaddr = strtoul(devaddr->valuestring, NULL, 16);
+        }
 
-    cJSON *fport = cJSON_GetObjectItemCaseSensitive(json, "fport");
-    if (cJSON_IsNumber(fport)) {
-        cfg->fport = fport->valueint;
-    }
+        cJSON *nwkskey = cJSON_GetObjectItemCaseSensitive(device, "nwkskey");
+        if (cJSON_IsString(nwkskey) && (nwkskey->valuestring != NULL)) {
+            for (int j = 0; j < 16; j++) {
+                sscanf(&nwkskey->valuestring[j * 2], "%2hhx", &cfg->nwkskey[j]);
+            }
+        }
 
-    cJSON *payload = cJSON_GetObjectItemCaseSensitive(json, "payload");
-    if (cJSON_IsArray(payload)) {
-        int payload_len = cJSON_GetArraySize(payload);
-        cfg->payload_len = payload_len > 64 ? 64 : payload_len;
-        for (int i = 0; i < cfg->payload_len; i++) {
-            cJSON *item = cJSON_GetArrayItem(payload, i);
-            if (cJSON_IsNumber(item)) {
-                cfg->payload[i] = (uint8_t)item->valueint;
+        cJSON *appskey = cJSON_GetObjectItemCaseSensitive(device, "appskey");
+        if (cJSON_IsString(appskey) && (appskey->valuestring != NULL)) {
+            for (int j = 0; j < 16; j++) {
+                sscanf(&appskey->valuestring[j * 2], "%2hhx", &cfg->appskey[j]);
+            }
+        }
+
+        cJSON *fcnt = cJSON_GetObjectItemCaseSensitive(device, "fcnt");
+        if (cJSON_IsNumber(fcnt)) {
+            cfg->fcnt = fcnt->valueint;
+        }
+
+        cJSON *fport = cJSON_GetObjectItemCaseSensitive(device, "fport");
+        if (cJSON_IsNumber(fport)) {
+            cfg->fport = fport->valueint;
+        }
+
+        cJSON *payload = cJSON_GetObjectItemCaseSensitive(device, "payload");
+        if (cJSON_IsArray(payload)) {
+            int payload_len = cJSON_GetArraySize(payload);
+            cfg->payload_len = payload_len > MAX_PAYLOAD_SIZE ? MAX_PAYLOAD_SIZE : payload_len;
+            for (int j = 0; j < cfg->payload_len; j++) {
+                cJSON *item = cJSON_GetArrayItem(payload, j);
+                if (cJSON_IsNumber(item)) {
+                    cfg->payload[j] = (uint8_t)item->valueint;
+                }
             }
         }
     }
