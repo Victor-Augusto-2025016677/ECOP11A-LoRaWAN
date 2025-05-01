@@ -88,7 +88,9 @@ int load_devices(const char *filename, cJSON **devices) {
 
 // Função para enviar confirmação de recebimento (ACK)
 void send_ack(int sockfd, struct sockaddr_in *client_addr, socklen_t addr_len) {
-    char ack_message[4] = "ACK"; // Mensagem fixa de ACK
+    char ack_message[4] = {0}; // Zera o buffer antes de usá-lo
+    strcpy(ack_message, "ACK"); // Copia a mensagem "ACK" para o buffer
+
     ssize_t sent_len = sendto(sockfd, ack_message, strlen(ack_message), 0,
                               (struct sockaddr *)client_addr, addr_len);
     if (sent_len < 0) {
@@ -104,7 +106,8 @@ int main() {
     int sockfd;
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof(client_addr);
-    unsigned char buffer[BUFFER_SIZE];
+    unsigned char recv_buffer[BUFFER_SIZE]; // Buffer para recepção
+    unsigned char send_buffer[BUFFER_SIZE]; // Buffer dedicado para envio
     ssize_t recv_len;
 
     cJSON *devices = NULL;
@@ -140,9 +143,12 @@ int main() {
     // Variável para contar pacotes processados
     int processed_count = 0;
 
+    // Identificador único do gateway (EUI-64)
+    uint8_t gateway_eui[8] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
+
     while (processed_count < device_count) {
         // Receber pacote do dispositivo
-        recv_len = recvfrom(sockfd, buffer, BUFFER_SIZE, 0,
+        recv_len = recvfrom(sockfd, recv_buffer, BUFFER_SIZE, 0,
                             (struct sockaddr *)&client_addr, &addr_len);
 
         if (recv_len < 0) {
@@ -158,7 +164,7 @@ int main() {
         // Exibir o conteúdo do pacote recebido
         printf("[Gateway] Conteúdo do pacote (hex): ");
         for (ssize_t i = 0; i < recv_len; ++i) {
-            printf("%02X ", buffer[i]);
+            printf("%02X ", recv_buffer[i]);
         }
         printf("\n");
 
@@ -181,8 +187,8 @@ int main() {
         }
 
         // Encapsula o pacote no formato Semtech UDP Packet Forwarder
-        uint8_t semtech_packet[BUFFER_SIZE];
-        int packet_len = encapsulate_semtech_packet(semtech_packet, sizeof(semtech_packet), json_string, buffer);
+        memset(send_buffer, 0, BUFFER_SIZE); // Zera o buffer de envio
+        int packet_len = encapsulate_semtech_packet(send_buffer, sizeof(send_buffer), json_string, gateway_eui);
         if (packet_len < 0) {
             printf("Erro ao encapsular o pacote no formato Semtech UDP Packet Forwarder\n");
             free(json_string);
@@ -191,7 +197,7 @@ int main() {
         }
 
         // Envia o pacote encapsulado
-        if (sendto(sockfd, semtech_packet, packet_len, 0, (struct sockaddr *)&client_addr, addr_len) < 0) {
+        if (sendto(sockfd, send_buffer, packet_len, 0, (struct sockaddr *)&client_addr, addr_len) < 0) {
             perror("Erro ao enviar pacote encapsulado");
         } else {
             printf("[Gateway] Pacote encapsulado enviado com sucesso.\n");
