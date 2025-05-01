@@ -8,6 +8,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <time.h> // Para usar nanosleep
 
 // Headers dos nossos módulos
 #include "lorawan.h"
@@ -15,7 +16,7 @@
 #include "Config.h"
 
 // Declaração da função send_to_ttn
-int send_to_ttn(const uint8_t *packet, int packet_len);
+int send_to_ttn(int sockfd, const uint8_t *packet, int packet_len);
 int save_config(const char *filename, const Config *configs, int device_count);
 
 
@@ -92,37 +93,25 @@ int save_config(const char *filename, const Config *configs, int device_count) {
     return 1;
 }
 
-int send_to_ttn(const uint8_t *packet, int packet_len) {
-    int sockfd;
+int send_to_ttn(int sockfd, const uint8_t *packet, int packet_len) {
     struct sockaddr_in server_addr;
 
-    printf("Criando socket UDP...\n");
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockfd < 0) {
-        perror("Erro ao criar socket");
-        return -1;
-    }
-    printf("Socket criado com sucesso.\n");
-
-    // Configurando o endereço do servidor (127.0.0.1:1700)
+    printf("Configurando o endereço do servidor (127.0.0.1:1700)...\n");
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(1700);
     if (inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr) <= 0) {
         perror("Erro ao configurar o endereço do servidor");
-        close(sockfd);
         return -1;
     }
 
     printf("Enviando pacote para o servidor local (127.0.0.1:1700)...\n");
     if (sendto(sockfd, packet, packet_len, 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("Erro ao enviar pacote");
-        close(sockfd);
         return -1;
     }
     printf("Pacote enviado para o servidor local com sucesso!\n");
 
-    close(sockfd);
     return 0;
 }
 
@@ -138,6 +127,14 @@ int main() {
         return 1;
     }
     printf("Configurações carregadas com sucesso. Dispositivos encontrados: %d\n", device_count);
+
+    // Criar o socket UDP
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        perror("Erro ao criar socket");
+        return 1;
+    }
+    printf("Socket UDP criado com sucesso.\n");
 
     for (int i = 0; i < device_count; i++) {
         Config *cfg = &configs[i];
@@ -162,20 +159,52 @@ int main() {
         }
         printf("\n");
 
-        printf("Enviando pacote para o dispositivo %d...\n", i + 1);
-        if (send_to_ttn(packet, packet_len) != 0) {
-            printf("Erro ao enviar pacote para o dispositivo %d\n", i + 1);
-            continue;
-        }
+        int ack_received = 0;
+        while (!ack_received) {
+            printf("Enviando pacote para o dispositivo %d...\n", i + 1);
+            if (send_to_ttn(sockfd, packet, packet_len) != 0) {
+                printf("Erro ao enviar pacote para o dispositivo %d\n", i + 1);
+                continue;
+            }
 
-        printf("Pacote enviado com sucesso para o dispositivo %d!\n", i + 1);
-        cfg->fcnt += 1; // Incrementa o contador de frames
+            printf("Pacote enviado com sucesso para o dispositivo %d! Aguardando ACK...\n", i + 1);
 
-        // Salvar o valor atualizado de fcnt no arquivo JSON
-        if (!save_config("config/Config.json", configs, device_count)) {
-            printf("Erro ao salvar o arquivo Config.json para o dispositivo %d\n", i + 1);
+            // Aguardar o ACK do gateway
+            char ack_buffer[64];
+            struct sockaddr_in server_addr;
+            socklen_t addr_len = sizeof(server_addr);
+            ssize_t ack_len = recvfrom(sockfd, ack_buffer, sizeof(ack_buffer) - 1, 0,
+                                       (struct sockaddr *)&server_addr, &addr_len);
+
+            if (ack_len < 0) {
+                perror("Erro ao receber ACK do gateway");
+            } else {
+                ack_buffer[ack_len] = '\0'; // Garante terminação da string
+                if (strcmp(ack_buffer, "ACK") == 0) {
+                    printf("ACK recebido do gateway para o dispositivo %d.\n", i + 1);
+                    ack_received = 1;
+                    cfg->fcnt += 1; // Incrementa o contador de frames
+
+                    // Salvar o valor atualizado de fcnt no arquivo JSON
+                    if (!save_config("config/Config.json", configs, device_count)) {
+                        printf("Erro ao salvar o arquivo Config.json para o dispositivo %d\n", i + 1);
+                    }
+                } else {
+                    printf("Resposta inesperada do gateway: %s\n", ack_buffer);
+                }
+            }
+
+            // Adicionar um delay antes de tentar novamente
+            struct timespec delay;
+            delay.tv_sec = 1;          // 1 segundo
+            delay.tv_nsec = 0;         // 0 nanosegundos
+            nanosleep(&delay, NULL);   // Pausa a execução
         }
     }
+
+    // Fechar o socket após o uso
+    close(sockfd);
+    printf("Socket fechado.\n");
 
     return 0;
 }

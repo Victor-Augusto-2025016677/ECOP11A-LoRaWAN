@@ -9,9 +9,10 @@
 
 #define PORT 1700
 #define BUFFER_SIZE 1024
+#define BASE64_BUFFER_SIZE ((BUFFER_SIZE + 2) / 3 * 4 + 1)
 
-// Função para carregar o Config.json
-int load_config(const char *filename, char *device_id, char *application_id, int *fport) {
+// Função para carregar os dispositivos do Config.json
+int load_devices(const char *filename, cJSON **devices) {
     FILE *file = fopen(filename, "r");
     if (!file) {
         perror("Erro ao abrir o arquivo Config.json");
@@ -41,39 +42,13 @@ int load_config(const char *filename, char *device_id, char *application_id, int
         return 0;
     }
 
-    // Carrega o DEVICE_ID
-    cJSON *device_id_json = cJSON_GetObjectItemCaseSensitive(json, "device_id");
-    if (cJSON_IsString(device_id_json) && (device_id_json->valuestring != NULL)) {
-        strncpy(device_id, device_id_json->valuestring, 32);
-        device_id[32] = '\0'; // Garante terminação
-    } else {
-        printf("Erro: Campo 'device_id' ausente ou inválido no Config.json\n");
+    *devices = cJSON_GetObjectItemCaseSensitive(json, "devices");
+    if (!cJSON_IsArray(*devices)) {
+        printf("Erro: 'devices' não é um array no Config.json\n");
         cJSON_Delete(json);
         return 0;
     }
 
-    // Carrega o APPLICATION_ID
-    cJSON *application_id_json = cJSON_GetObjectItemCaseSensitive(json, "application_id");
-    if (cJSON_IsString(application_id_json) && (application_id_json->valuestring != NULL)) {
-        strncpy(application_id, application_id_json->valuestring, 32);
-        application_id[32] = '\0'; // Garante terminação
-    } else {
-        printf("Erro: Campo 'application_id' ausente ou inválido no Config.json\n");
-        cJSON_Delete(json);
-        return 0;
-    }
-
-    // Carrega o FPORT
-    cJSON *fport_json = cJSON_GetObjectItemCaseSensitive(json, "fport");
-    if (cJSON_IsNumber(fport_json)) {
-        *fport = fport_json->valueint;
-    } else {
-        printf("Erro: Campo 'fport' ausente ou inválido no Config.json\n");
-        cJSON_Delete(json);
-        return 0;
-    }
-
-    cJSON_Delete(json);
     return 1;
 }
 
@@ -84,19 +59,16 @@ int main() {
     unsigned char buffer[BUFFER_SIZE];
     ssize_t recv_len;
 
-    char device_id[33] = {0};       // Buffer para armazenar o device_id
-    char application_id[33] = {0};  // Buffer para armazenar o application_id
-    int fport = 0;                  // Variável para armazenar o fport
+    cJSON *devices = NULL;
 
-    // Carrega os valores do Config.json
-    if (!load_config("config/Config.json", device_id, application_id, &fport)) {
-        printf("Erro ao carregar o arquivo Config.json\n");
+    // Carrega os dispositivos do Config.json
+    if (!load_devices("config/Config.json", &devices)) {
+        printf("Erro ao carregar os dispositivos do Config.json\n");
         return 1;
     }
 
-    printf("[Gateway] DEVICE_ID: %s\n", device_id);
-    printf("[Gateway] APPLICATION_ID: %s\n", application_id);
-    printf("[Gateway] FPORT: %d\n", fport);
+    int device_count = cJSON_GetArraySize(devices);
+    printf("[Gateway] Dispositivos encontrados: %d\n", device_count);
 
     // Cria o socket UDP
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -119,8 +91,11 @@ int main() {
 
     printf("[Gateway] Aguardando pacotes na porta %d...\n", PORT);
 
+    // Variável para contar pacotes processados
+    int processed_count = 0;
+
     // Loop principal para escutar pacotes
-    while (1) {
+    while (processed_count < device_count) {
         recv_len = recvfrom(sockfd, buffer, BUFFER_SIZE, 0,
                             (struct sockaddr *)&client_addr, &addr_len);
 
@@ -141,33 +116,52 @@ int main() {
         printf("\n");
 
         // Converte o pacote para Base64
-        unsigned char base64_output[BUFFER_SIZE * 2]; // Buffer para saída Base64
+        unsigned char base64_output[BASE64_BUFFER_SIZE]; // Buffer para saída Base64
         size_t output_len;
+
+        // Codificar o payload em Base64
         int ret = mbedtls_base64_encode(base64_output, sizeof(base64_output), &output_len, buffer, recv_len);
         if (ret != 0) {
-            printf("Erro ao codificar o pacote em Base64\n");
-        } else {
-            printf("[Gateway] Pacote em Base64:\n%s\n", base64_output);
+            printf("Erro ao codificar o pacote em Base64. Código de erro: %d\n", ret);
+            continue;
+        }
 
-            // Cria o JSON no formato esperado pelo TTN
-            cJSON *root = cJSON_CreateObject();
-            if (root == NULL) {
-                printf("Erro ao criar o objeto JSON\n");
+        // Adicionar o caractere nulo ao final da string Base64
+        base64_output[output_len] = '\0';
+
+        // Exibir o resultado da codificação para depuração
+        printf("[Gateway] Payload codificado em Base64: %s\n", base64_output);
+
+        // Processa cada dispositivo
+        for (int i = 0; i < device_count; i++) {
+            cJSON *device = cJSON_GetArrayItem(devices, i);
+            if (!cJSON_IsObject(device)) {
                 continue;
             }
 
-            // Adiciona informações ao JSON
+            // Extrai informações do dispositivo
+            const cJSON *device_id = cJSON_GetObjectItemCaseSensitive(device, "device_id");
+            const cJSON *application_id = cJSON_GetObjectItemCaseSensitive(device, "application_id");
+            const cJSON *fport = cJSON_GetObjectItemCaseSensitive(device, "fport");
+
+            if (!cJSON_IsString(device_id) || !cJSON_IsString(application_id) || !cJSON_IsNumber(fport)) {
+                printf("Erro: Dispositivo %d com dados inválidos no Config.json\n", i + 1);
+                continue;
+            }
+
+            // Cria o JSON de saída
+            cJSON *root = cJSON_CreateObject();
             cJSON *end_device_ids = cJSON_CreateObject();
-            cJSON_AddStringToObject(end_device_ids, "device_id", device_id);
+            cJSON_AddStringToObject(end_device_ids, "device_id", device_id->valuestring);
 
             cJSON *application_ids = cJSON_CreateObject();
-            cJSON_AddStringToObject(application_ids, "application_id", application_id);
+            cJSON_AddStringToObject(application_ids, "application_id", application_id->valuestring);
             cJSON_AddItemToObject(end_device_ids, "application_ids", application_ids);
 
             cJSON_AddItemToObject(root, "end_device_ids", end_device_ids);
 
             cJSON *uplink_message = cJSON_CreateObject();
-            cJSON_AddNumberToObject(uplink_message, "f_port", fport); // Usa o fport carregado
+            cJSON_AddNumberToObject(uplink_message, "f_port", fport->valueint);
             cJSON_AddStringToObject(uplink_message, "frm_payload", (char *)base64_output);
             cJSON_AddItemToObject(root, "uplink_message", uplink_message);
 
@@ -176,30 +170,43 @@ int main() {
             if (json_string == NULL) {
                 printf("Erro ao converter JSON para string\n");
             } else {
-                printf("[Gateway] JSON gerado:\n%s\n", json_string);
+                printf("[Gateway] JSON gerado para o dispositivo %d:\n%s\n", i + 1, json_string);
 
-                // Salva o JSON em um arquivo na pasta json_out
-                FILE *file = fopen("json_out/uplink.json", "w");
+                // Salva o JSON em um arquivo
+                char filename[64];
+                snprintf(filename, sizeof(filename), "json_out/uplink_device_%d.json", i + 1);
+                FILE *file = fopen(filename, "w");
                 if (file == NULL) {
                     perror("Erro ao abrir o arquivo para salvar o JSON");
                 } else {
                     fprintf(file, "%s\n", json_string);
                     fclose(file);
-                    printf("[Gateway] JSON salvo no arquivo 'json_out/uplink.json'\n");
+                    printf("[Gateway] JSON salvo no arquivo '%s'\n", filename);
                 }
 
-                free(json_string); // Libera a string JSON
+                free(json_string);
             }
 
-            // Limpa o objeto JSON
             cJSON_Delete(root);
         }
 
-        // Encerra o programa após receber o pacote
-        printf("[Gateway] Encerrando após receber o pacote.\n");
-        break;
+        // Enviar confirmação de recebimento (ACK)
+        const char *ack_message = "ACK";
+        if (sendto(sockfd, ack_message, strlen(ack_message), 0,
+                   (struct sockaddr *)&client_addr, addr_len) < 0) {
+            perror("Erro ao enviar ACK");
+        } else {
+            printf("[Gateway] ACK enviado para o dispositivo.\n");
+        }
+
+        // Incrementa o contador de pacotes processados
+        processed_count++;
+        printf("[Gateway] Pacotes processados: %d/%d\n", processed_count, device_count);
     }
 
+    printf("[Gateway] Todos os pacotes foram processados. Encerrando...\n");
+
+    cJSON_Delete(devices);
     close(sockfd);
     return 0;
 }
