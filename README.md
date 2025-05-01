@@ -91,19 +91,19 @@ Criar um código em C que envie 2 variáveis para o TagoIO via TTN (simulado).
 
 Entrega: 1 de abril de 2025
 
-(✅ +~-) Etapa 2 – Emulador de Dispositivo LoRaWAN
+(✅) Etapa 2 – Emulador de Dispositivo LoRaWAN
 Implementação da montagem e envio de pacotes LoRaWAN com criptografia.
 Simulação de uplinks com configuração por JSON.
 
 Entrega: 21 de abril de 2025
 
-Etapa 3 – Emulador de Gateway (UDP Forwarder)
+(✅) Etapa 3 – Emulador de Gateway (UDP Forwarder)
 Recebimento de pacotes e reencaminhamento para o TTN usando o protocolo Semtech UDP.
 Logs e gerenciamento básico de pacotes.
 
 Entrega: 28 de abril de 2025
 
-Etapa 4 – Integração dos Módulos
+(✅) Etapa 4 – Integração dos Módulos
 Comunicação entre o emulador de dispositivo e o gateway localmente.
 Testes e validação de pacotes.
 
