@@ -6,12 +6,20 @@
 #include <arpa/inet.h>
 #include <mbedtls/base64.h> // Inclui o mbedtls para codificação Base64
 #include <cjson/cJSON.h>    // Inclui a biblioteca cJSON
+#include <libwebsockets.h>  // Inclui a biblioteca libwebsockets
 
 #define PORT 1700
 #define BUFFER_SIZE 1024
 #define BASE64_BUFFER_SIZE ((BUFFER_SIZE + 2) / 3 * 4 + 1)
 #define PROTOCOL_VERSION 0x02
 #define PUSH_DATA 0x00
+#define TTN_WS_URL "wss://eu1.cloud.thethings.network:8887" // URL do servidor TTN Basic Station
+
+typedef struct {
+    char gateway_id[64];
+    uint8_t gateway_eui[8];
+    char server[256];
+} DeviceConfig;
 
 // Função para gerar o token (2 bytes aleatórios)
 uint16_t generate_token() {
@@ -86,73 +94,184 @@ int load_devices(const char *filename, cJSON **devices) {
     return 1;
 }
 
+// Função para carregar informações do dispositivo
+int load_device_info(cJSON *device, DeviceConfig *config) {
+    const char *gateway_id = cJSON_GetObjectItem(device, "gateway_id")->valuestring;
+    const char *gateway_eui_str = cJSON_GetObjectItem(device, "gateway_eui")->valuestring;
+    const char *ws_url = cJSON_GetObjectItem(device, "ws_url")->valuestring;
+
+    if (!gateway_id || !gateway_eui_str || !ws_url) {
+        printf("Erro: gateway_id, gateway_eui ou ws_url ausente no dispositivo.\n");
+        return 0;
+    }
+
+    strncpy(config->gateway_id, gateway_id, sizeof(config->gateway_id) - 1);
+
+    for (int i = 0; i < 8; i++) {
+        sscanf(&gateway_eui_str[i * 2], "%2hhx", &config->gateway_eui[i]);
+    }
+
+    strncpy(config->server, ws_url, sizeof(config->server) - 1);
+
+    return 1;
+}
+
 // Função para enviar confirmação de recebimento (ACK)
 void send_ack(int sockfd, struct sockaddr_in *client_addr, socklen_t addr_len) {
     char ack_message[4] = {0}; // Zera o buffer antes de usá-lo
     strcpy(ack_message, "ACK"); // Copia a mensagem "ACK" para o buffer
 
+    // Enviar o ACK para o cliente
     ssize_t sent_len = sendto(sockfd, ack_message, strlen(ack_message), 0,
                               (struct sockaddr *)client_addr, addr_len);
+
+    // Verificar se o envio foi bem-sucedido
     if (sent_len < 0) {
         perror("[Gateway] Erro ao enviar ACK");
     } else if (sent_len != (ssize_t)strlen(ack_message)) {
         printf("[Gateway] Erro: ACK enviado parcialmente (%ld bytes).\n", sent_len);
     } else {
-        printf("[Gateway] ACK enviado para o dispositivo.\n");
+        printf("[Gateway] ACK enviado com sucesso para %s:%d.\n",
+               inet_ntoa(client_addr->sin_addr), ntohs(client_addr->sin_port));
     }
 }
 
+// Função para extrair o host de uma URL
+void extract_host_from_url(const char *url, char *host, size_t host_size) {
+    const char *start = strstr(url, "://");
+    if (start) {
+        start += 3; // Pula "://"
+    } else {
+        start = url; // Caso não tenha "://", usa o URL completo
+    }
+
+    const char *end = strchr(start, ':'); // Procura por ":"
+    if (!end) {
+        end = strchr(start, '/'); // Procura por "/"
+    }
+    if (!end) {
+        end = start + strlen(start); // Usa o restante da string
+    }
+
+    size_t len = end - start;
+    if (len >= host_size) {
+        len = host_size - 1;
+    }
+
+    strncpy(host, start, len);
+    host[len] = '\0';
+}
+
+// Callback para o WebSocket
+static int callback_ttn(struct lws *wsi __attribute__((unused)),
+                        enum lws_callback_reasons reason,
+                        void *user __attribute__((unused)),
+                        void *in, size_t len) {
+    switch (reason) {
+        case LWS_CALLBACK_CLIENT_ESTABLISHED:
+            printf("[Gateway] Conexão WebSocket estabelecida com o TTN.\n");
+            break;
+
+        case LWS_CALLBACK_CLIENT_RECEIVE:
+            printf("[Gateway] Mensagem recebida do TTN: %.*s\n", (int)len, (char *)in);
+            break;
+
+        case LWS_CALLBACK_CLIENT_WRITEABLE:
+            printf("[Gateway] Pronto para enviar dados ao TTN.\n");
+            break;
+
+        case LWS_CALLBACK_CLOSED:
+            printf("[Gateway] Conexão WebSocket fechada.\n");
+            break;
+
+        default:
+            break;
+    }
+    return 0;
+}
+
+// Protocolos do WebSocket
+static struct lws_protocols protocols[] = {
+    {
+        "ttn-protocol",  // Nome do protocolo
+        callback_ttn,    // Função de callback
+        0,               // Tamanho do espaço de usuário
+        BUFFER_SIZE,     // Tamanho do buffer
+        0,               // ID (inicializado como 0)
+        NULL,            // Campo 'user' inicializado como NULL
+        0                // Tamanho máximo do pacote de transmissão (tx_packet_size)
+    },
+    {NULL, NULL, 0, 0, 0, NULL, 0} /* Termina a lista de protocolos */
+};
+
+// Adicionando a exibição do pacote final com servidor e porta
 int main() {
-    int sockfd;
-    struct sockaddr_in server_addr, client_addr;
-    socklen_t addr_len = sizeof(client_addr);
-    unsigned char recv_buffer[BUFFER_SIZE]; // Buffer para recepção
-    unsigned char send_buffer[BUFFER_SIZE]; // Buffer dedicado para envio
-    ssize_t recv_len;
+    struct lws_context_creation_info info;
+    struct lws_client_connect_info ccinfo;
+    struct lws_context *context;
+    struct lws *wsi;
 
     cJSON *devices = NULL;
 
-    // Carrega os dispositivos do Config.json
+    // Carregar dispositivos do Config.json
     if (!load_devices("config/Config.json", &devices)) {
         printf("Erro ao carregar os dispositivos do Config.json\n");
-        return 1;
+        return -1;
     }
 
     int device_count = cJSON_GetArraySize(devices);
     printf("[Gateway] Dispositivos encontrados: %d\n", device_count);
 
-    // Configuração do socket
-    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        perror("Erro ao criar socket");
-        exit(EXIT_FAILURE);
+    // Configuração do socket para receber pacotes
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        perror("[Gateway] Erro ao criar socket");
+        return -1;
     }
 
+    struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(PORT);
 
     if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Erro ao fazer bind");
+        perror("[Gateway] Erro ao fazer bind");
         close(sockfd);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
-    printf("[Gateway] Aguardando pacotes na porta %d...\n", PORT);
+    printf("[Gateway] Aguardando pacotes dos dispositivos...\n");
 
-    // Variável para contar pacotes processados
-    int processed_count = 0;
+    // Processar cada dispositivo
+    for (int i = 0; i < device_count; i++) {
+        cJSON *device = cJSON_GetArrayItem(devices, i);
+        DeviceConfig config;
 
-    // Identificador único do gateway (EUI-64)
-    uint8_t gateway_eui[8] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
+        if (!load_device_info(device, &config)) {
+            printf("[Gateway] Erro ao carregar informações do dispositivo %d.\n", i + 1);
+            continue;
+        }
 
-    while (processed_count < device_count) {
-        // Receber pacote do dispositivo
-        recv_len = recvfrom(sockfd, recv_buffer, BUFFER_SIZE, 0,
-                            (struct sockaddr *)&client_addr, &addr_len);
+        printf("[Gateway] Configurando dispositivo %d:\n", i + 1);
+        printf("  Gateway ID: %s\n", config.gateway_id);
+        printf("  Gateway EUI: ");
+        for (int j = 0; j < 8; j++) {
+            printf("%02X", config.gateway_eui[j]);
+            if (j < 7) printf(":");
+        }
+        printf("\n");
+        printf("  WebSocket URL: %s\n", config.server);
 
+        // Aguardar pacotes dos dispositivos
+        struct sockaddr_in client_addr;
+        socklen_t addr_len = sizeof(client_addr);
+        unsigned char recv_buffer[BUFFER_SIZE];
+        ssize_t recv_len;
+
+        recv_len = recvfrom(sockfd, recv_buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_addr, &addr_len);
         if (recv_len < 0) {
-            perror("[Gateway] Erro ao receber dados");
+            perror("[Gateway] Erro ao receber pacote");
             continue;
         }
 
@@ -161,59 +280,49 @@ int main() {
                inet_ntoa(client_addr.sin_addr),
                ntohs(client_addr.sin_port));
 
-        // Exibir o conteúdo do pacote recebido
-        printf("[Gateway] Conteúdo do pacote (hex): ");
-        for (ssize_t i = 0; i < recv_len; ++i) {
-            printf("%02X ", recv_buffer[i]);
-        }
-        printf("\n");
-
-        // Enviar confirmação de recebimento (ACK)
+        // Enviar o ACK para o cliente
         send_ack(sockfd, &client_addr, addr_len);
 
-        // Criar um objeto JSON para encapsular os dados
-        cJSON *root = cJSON_CreateObject();
-        if (!root) {
-            printf("Erro ao criar objeto JSON\n");
+        // Configurar WebSocket para o dispositivo
+        memset(&info, 0, sizeof(info));
+        info.port = CONTEXT_PORT_NO_LISTEN;
+        info.protocols = protocols;
+
+        context = lws_create_context(&info);
+        if (!context) {
+            printf("[Gateway] Erro ao criar o contexto WebSocket.\n");
+            return -1;
+        }
+
+        char host[256];
+        extract_host_from_url(config.server, host, sizeof(host));
+
+        memset(&ccinfo, 0, sizeof(ccinfo));
+        ccinfo.context = context;
+        ccinfo.address = host; // Nome do host extraído
+        ccinfo.port = 8887;
+        ccinfo.path = "/";
+        ccinfo.host = lws_canonical_hostname(context);
+        ccinfo.origin = "origin";
+        ccinfo.protocol = protocols[0].name;
+        ccinfo.ssl_connection = LCCSCF_USE_SSL;
+
+        wsi = lws_client_connect_via_info(&ccinfo);
+        if (!wsi) {
+            printf("[Gateway] Erro ao conectar ao servidor TTN para o dispositivo %d.\n", i + 1);
+            lws_context_destroy(context);
             continue;
         }
 
-        cJSON_AddStringToObject(root, "data", "example_payload");
-        char *json_string = cJSON_PrintUnformatted(root);
-        if (!json_string) {
-            printf("Erro ao criar string JSON\n");
-            cJSON_Delete(root);
-            continue;
+        printf("[Gateway] Conectando ao TTN para o dispositivo %d...\n", i + 1);
+
+        while (lws_service(context, 1000) >= 0) {
+            // Loop principal para manter a conexão WebSocket
         }
 
-        // Encapsula o pacote no formato Semtech UDP Packet Forwarder
-        memset(send_buffer, 0, BUFFER_SIZE); // Zera o buffer de envio
-        int packet_len = encapsulate_semtech_packet(send_buffer, sizeof(send_buffer), json_string, gateway_eui);
-        if (packet_len < 0) {
-            printf("Erro ao encapsular o pacote no formato Semtech UDP Packet Forwarder\n");
-            free(json_string);
-            cJSON_Delete(root);
-            continue;
-        }
-
-        // Envia o pacote encapsulado
-        if (sendto(sockfd, send_buffer, packet_len, 0, (struct sockaddr *)&client_addr, addr_len) < 0) {
-            perror("Erro ao enviar pacote encapsulado");
-        } else {
-            printf("[Gateway] Pacote encapsulado enviado com sucesso.\n");
-        }
-
-        free(json_string);
-        cJSON_Delete(root);
-
-        // Incrementa o contador de pacotes processados
-        processed_count++;
-        printf("[Gateway] Pacotes processados: %d/%d\n", processed_count, device_count);
+        lws_context_destroy(context);
     }
 
-    printf("[Gateway] Todos os pacotes foram processados. Encerrando...\n");
-
-    // Liberar memória e fechar o socket
     cJSON_Delete(devices);
     close(sockfd);
     return 0;

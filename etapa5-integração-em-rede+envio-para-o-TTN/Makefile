@@ -14,7 +14,7 @@ INCLUDES = -Iinclude -I/usr/include
 LDFLAGS = -L/usr/lib/x86_64-linux-gnu
 
 # Bibliotecas para linkedição
-LIBS = -lmbedtls -lmbedcrypto -lmbedx509 -lcjson -lcurl
+LIBS = -lmbedtls -lmbedcrypto -lmbedx509 -lcjson -lcurl -lwebsockets
 
 # Diretórios de origem e binários
 SRC_DIR = src
