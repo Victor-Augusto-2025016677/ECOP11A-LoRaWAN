@@ -79,7 +79,6 @@ int lorawan_append_mic(
     memcpy(buffer, b0, 16);
     memcpy(buffer + 16, packet, len);
 
-    // Calcular o MIC usando a função genérica AES-128 CMAC
     ret = aes128_cmac(nwkSKey, buffer, len + 16, mic);
     if (ret != 0) {
         printf("Erro ao calcular o MIC\n");

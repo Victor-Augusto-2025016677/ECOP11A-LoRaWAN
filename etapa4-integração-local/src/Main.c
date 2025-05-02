@@ -8,21 +8,17 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <time.h> // Para usar nanosleep
+#include <time.h>
 
-// Headers dos nossos módulos
 #include "lorawan.h"
 #include "aes_cmac.h"
 #include "Config.h"
 
-// Declaração da função send_to_ttn
 int send_to_gateway(int sockfd, const uint8_t *packet, int packet_len, struct sockaddr_in *server_addr);
 int wait_for_ack(int sockfd);
 int save_config(const char *filename, const Config *configs, int device_count);
 
-// Função para salvar o Config.json atualizado
 int save_config(const char *filename, const Config *configs, int device_count) {
-    // Carregar o JSON original
     FILE *file = fopen(filename, "r");
     if (!file) {
         perror("Erro ao abrir o arquivo para leitura");
@@ -68,7 +64,6 @@ int save_config(const char *filename, const Config *configs, int device_count) {
         cJSON_ReplaceItemInObject(device, "fcnt", cJSON_CreateNumber(configs[i].fcnt));
     }
 
-    // Salvar o JSON atualizado
     file = fopen(filename, "w");
     if (!file) {
         perror("Erro ao abrir o arquivo para escrita");
@@ -93,7 +88,6 @@ int save_config(const char *filename, const Config *configs, int device_count) {
     return 1;
 }
 
-// Função para enviar pacotes para o Gateway
 int send_to_gateway(int sockfd, const uint8_t *packet, int packet_len, struct sockaddr_in *server_addr) {
     if (sendto(sockfd, packet, packet_len, 0, (struct sockaddr *)server_addr, sizeof(*server_addr)) < 0) {
         perror("[Main] Erro ao enviar pacote");
@@ -103,9 +97,8 @@ int send_to_gateway(int sockfd, const uint8_t *packet, int packet_len, struct so
     return 0;
 }
 
-// Função para aguardar o ACK do Gateway
 int wait_for_ack(int sockfd) {
-    char ack_buffer[64] = {0}; // Zera o buffer antes de usá-lo
+    char ack_buffer[64] = {0};
     struct sockaddr_in from_addr;
     socklen_t addr_len = sizeof(from_addr);
 
@@ -117,7 +110,7 @@ int wait_for_ack(int sockfd) {
         return 0;
     }
 
-    ack_buffer[ack_len] = '\0'; // Garante terminação da string
+    ack_buffer[ack_len] = '\0';
     printf("[Main] Resposta recebida do Gateway: %s\n", ack_buffer);
 
     if (strncmp(ack_buffer, "ACK", 3) == 0) {
@@ -142,7 +135,6 @@ int main() {
     }
     printf("Configurações carregadas com sucesso. Dispositivos encontrados: %d\n", device_count);
 
-    // Criar o socket UDP
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
         perror("Erro ao criar socket");
@@ -176,7 +168,6 @@ int main() {
             continue;
         }
 
-        // Exibir o pacote em formato hexadecimal
         printf("Pacote montado para o dispositivo %d: ", i + 1);
         for (int j = 0; j < packet_len; j++) {
             printf("%02X ", packet[j]);
@@ -193,28 +184,24 @@ int main() {
 
             printf("Pacote enviado com sucesso para o dispositivo %d! Aguardando ACK...\n", i + 1);
 
-            // Aguardar o ACK do gateway
             ack_received = wait_for_ack(sockfd);
 
-            // Adicionar um delay antes de tentar novamente
             if (!ack_received) {
                 struct timespec delay;
-                delay.tv_sec = 1;          // 1 segundo
-                delay.tv_nsec = 0;         // 0 nanosegundos
-                nanosleep(&delay, NULL);   // Pausa a execução
+                delay.tv_sec = 1;
+                delay.tv_nsec = 0;
+                nanosleep(&delay, NULL);
             }
         }
 
         printf("ACK recebido do gateway para o dispositivo %d.\n", i + 1);
-        cfg->fcnt += 1; // Incrementa o contador de frames
+        cfg->fcnt += 1;
 
-        // Salvar o valor atualizado de fcnt no arquivo JSON
         if (!save_config("config/Config.json", configs, device_count)) {
             printf("Erro ao salvar o arquivo Config.json para o dispositivo %d\n", i + 1);
         }
     }
 
-    // Fechar o socket após o uso
     close(sockfd);
     printf("Socket fechado.\n");
 

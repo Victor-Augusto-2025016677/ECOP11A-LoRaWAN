@@ -3,9 +3,6 @@
 #include "aes_cmac.h"
 #include <mbedtls/aes.h>
 
-// Pacote LoRaWAN:
-// [MHDR (1 byte)] [FHDR (DevAddr, FCtrl, FCnt, FOpts)] [FPort] [FRMPayload] [MIC (4 bytes)]
-
 int lorawan_build_uplink(
     uint8_t *out_buffer,
     uint32_t devAddr,
@@ -17,27 +14,16 @@ int lorawan_build_uplink(
     uint8_t payload_len
 ) {
     int index = 0;
-
-    // 1. MHDR
-    out_buffer[index++] = 0x40; // Unconfirmed Data Up
-
-    // 2. DevAddr (little-endian)
+    out_buffer[index++] = 0x40;
     out_buffer[index++] = (uint8_t)(devAddr & 0xFF);
     out_buffer[index++] = (uint8_t)((devAddr >> 8) & 0xFF);
     out_buffer[index++] = (uint8_t)((devAddr >> 16) & 0xFF);
     out_buffer[index++] = (uint8_t)((devAddr >> 24) & 0xFF);
-
-    // 3. FCtrl
     out_buffer[index++] = 0x00;
-
-    // 4. FCnt (little-endian)
     out_buffer[index++] = (uint8_t)(fcnt & 0xFF);
     out_buffer[index++] = (uint8_t)((fcnt >> 8) & 0xFF);
-
-    // 5. FPort
     out_buffer[index++] = fport;
 
-    // 6. FRMPayload criptografado com AppSKey
     uint8_t *encrypted = &out_buffer[index];
     uint8_t block_a[16], s_block[16];
     mbedtls_aes_context aes;
@@ -48,7 +34,7 @@ int lorawan_build_uplink(
     for (int i = 0; i < payload_len; i += 16) {
         memset(block_a, 0, 16);
         block_a[0] = 0x01;
-        block_a[5] = 0x00; // uplink
+        block_a[5] = 0x00;
         block_a[6] = (uint8_t)(devAddr & 0xFF);
         block_a[7] = (uint8_t)((devAddr >> 8) & 0xFF);
         block_a[8] = (uint8_t)((devAddr >> 16) & 0xFF);
@@ -67,7 +53,6 @@ int lorawan_build_uplink(
     mbedtls_aes_free(&aes);
     index += payload_len;
 
-    // 7. MIC
     uint8_t mic[16];
     uint8_t b0[16];
     memset(b0, 0, 16);
@@ -80,7 +65,7 @@ int lorawan_build_uplink(
     b0[9] = (uint8_t)((devAddr >> 24) & 0xFF);
     b0[10] = (uint8_t)(fcnt & 0xFF);
     b0[11] = (uint8_t)((fcnt >> 8) & 0xFF);
-    b0[15] = (uint8_t)(index); // tamanho do pacote até aqui
+    b0[15] = (uint8_t)(index);
 
     uint8_t mic_input[256];
     memcpy(mic_input, b0, 16);
@@ -93,5 +78,5 @@ int lorawan_build_uplink(
     out_buffer[index++] = mic[2];
     out_buffer[index++] = mic[3];
 
-    return index; // Tamanho final do pacote com MIC
+    return index;
 }

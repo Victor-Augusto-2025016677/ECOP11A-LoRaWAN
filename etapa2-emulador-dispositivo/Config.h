@@ -1,4 +1,3 @@
-
 #ifndef CONFIG_H
 #define CONFIG_H
 
@@ -6,7 +5,7 @@
 
 #define MBEDTLS_CIPHER_MODE_CMAC 1
 #define MAX_PAYLOAD_SIZE 64
-#define MAX_DEVICES 10 // Suporte para até 10 dispositivos
+#define MAX_DEVICES 10
 
 typedef struct {
     char deveui[17];

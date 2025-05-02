@@ -4,12 +4,13 @@
 #include <stdint.h>
 #include <stddef.h>
 
-int aes128_cmac(
-    const uint8_t *key,
-    const uint8_t *input,
-    size_t length,
-    uint8_t *output
-);
+int aes128_cmac
+    (
+        const uint8_t *key,
+        const uint8_t *input,
+        size_t length,
+        uint8_t *output
+    );
 
 int lorawan_append_mic(
     uint8_t *packet,

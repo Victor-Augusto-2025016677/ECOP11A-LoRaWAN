@@ -19,5 +19,15 @@
 			"fcnt":	0,
 			"fport":	15,
 			"payload":	[64, 82]
+		}, {
+			"device_id":	"lorawan-simu2",
+			"application_id":	"lorawan-unifei",
+			"deveui":	"70B3D57ED0070507",
+			"devaddr":	"260CF6CF",
+			"nwkskey":	"388F49FB1FD9507358CFD6B102D3A627",
+			"appskey":	"F125B998CB5E21F5D083B9A2FB8B0F66",
+			"fcnt":	0,
+			"fport":	20,
+			"payload":	[25, 75]
 		}]
 }
