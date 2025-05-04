@@ -14,10 +14,6 @@ void gerar_nome_log(char *buffer, size_t tamanho) { //criação de nome com base
     struct tm *tm_info = localtime(&agora);
     strftime(buffer, tamanho, "logs/log_%Y%m%d_%H%M%S.txt", tm_info);
 }
-
-
-
-//função para adicionar tempo na escrita do log
 const char* current_time_str() {
     static char buffer[32];
     time_t now = time(NULL);
@@ -25,7 +21,6 @@ const char* current_time_str() {
     strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", t);
     return buffer;
 }
-
 void iniciarlog() {
     gerar_nome_log(nomedolog, sizeof(nomedolog));
     log_file = fopen(nomedolog, "a");
@@ -36,14 +31,12 @@ void iniciarlog() {
     fprintf(log_file, "========== NOVA EXECUÇÃO (%s) ==========\n\n", current_time_str());
     fflush(log_file);
 }
-
 void escreverlog(const char *mensagem) {
     if (log_file != NULL) {
         fprintf(log_file, "[%s] %s\n", current_time_str(), mensagem);
         fflush(log_file);
     }
 }
-
 void fecharlog() {
     if (log_file != NULL) {
         fprintf(log_file, "\n========== FINAL EXECUÇÃO (%s) ==========\n", current_time_str());
@@ -52,12 +45,25 @@ void fecharlog() {
     }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 int main() {
     double a, b, resultado;
     char operacao;
 
-    iniciarlog(); // Inicializa o log
-
+    iniciarlog();
     escreverlog("Iniciando o programa");
 
     printf("Digite o primeiro número: ");
