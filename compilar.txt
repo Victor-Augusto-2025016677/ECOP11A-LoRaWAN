@@ -1,3 +1,0 @@
-"C:\msys64\mingw64\bin\gcc.exe" -fdiagnostics-color=always -g Untitled-1.c -o Untitled-1.exe -I C:\msys64\mingw64\include -L C:\msys64\mingw64\lib -lcurl
-
-cd C:\Users\vadas\Downloads\A
