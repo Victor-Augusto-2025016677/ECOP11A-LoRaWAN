@@ -1,13 +1,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <time.h>
 #include <curl/curl.h>
+
+//Inicio bloco de log
+
+#include <time.h>
 
 FILE *log_file = NULL;
 char nomedolog[64];
 
-//Incio bloco de log
 void gerar_nome_log(char *buffer, size_t tamanho) { //criação de nome com base no tempo
     time_t agora = time(NULL);
     struct tm *tm_info = localtime(&agora);
