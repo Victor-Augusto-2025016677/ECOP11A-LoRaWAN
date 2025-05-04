@@ -1,6 +1,6 @@
 TARGET = Main.exe
 
-SRC = Main.c lorawan.c aes_cmac.c Config.c
+SRC = Main.c
 
 CC = /usr/bin/gcc
 
