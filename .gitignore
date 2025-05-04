@@ -50,7 +50,3 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
-
-# Exceção para incluir a biblioteca mbedtls
-!etapa2-emulador-dispositivo/mbedtls/
-!etapa5-integração-em-rede+envio-para-o-TTN/mbedtls/**
