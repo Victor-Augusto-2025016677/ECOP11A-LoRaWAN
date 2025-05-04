@@ -50,7 +50,6 @@ void fecharlog() {
 /*
 Comandos de execução:
 
-
     iniciarlog();
 
     escreverlog("texto aqui"); //as timestamp são adicionadas automaticamente na função
