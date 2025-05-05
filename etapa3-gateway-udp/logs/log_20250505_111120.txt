@@ -1,0 +1,6 @@
+========== NOVA EXECUÇÃO (2025-05-05 11:11:20) ==========
+
+[2025-05-05 11:11:20] [Gateway] Carregando json
+[2025-05-05 11:11:20] [Gateway] DEVICE_ID: lorawan-simu1
+[2025-05-05 11:11:20] [Gateway] APPLICATION_ID: lorawan-unifei
+[2025-05-05 11:11:20] [Gateway] Aguardando pacotes na porta 1700...

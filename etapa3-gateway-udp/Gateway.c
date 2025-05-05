@@ -105,6 +105,7 @@ int load_config(const char *filename, char *device_id, char *application_id) {
 
 	if (!json) {
 		printf("Erro ao analisar o JSON: %s\n", cJSON_GetErrorPtr());
+		escreverlog("Erro ao analisar o JSON: %s", cJSON_GetErrorPtr());
 		return 0;
 	}
 
@@ -113,6 +114,7 @@ int load_config(const char *filename, char *device_id, char *application_id) {
 		strncpy(device_id, device_id_json->valuestring, 32);
 		device_id[32] = '\0';
 	} else {
+		escreverlog("Erro: Campo 'device_id' ausente ou inválido no Config.json");
 		printf("Erro: Campo 'device_id' ausente ou inválido no Config.json\n");
 		cJSON_Delete(json);
 		return 0;
@@ -123,6 +125,7 @@ int load_config(const char *filename, char *device_id, char *application_id) {
 		strncpy(application_id, application_id_json->valuestring, 32);
 		application_id[32] = '\0';
 	} else {
+		escreverlog("Erro: Campo 'application_id' ausente ou inválido no Config.json");
 		printf("Erro: Campo 'application_id' ausente ou inválido no Config.json\n");
 		cJSON_Delete(json);
 		return 0;
@@ -145,11 +148,16 @@ int main() {
 	char device_id[33] = {0};
 	char application_id[33] = {0};
 
+	escreverlog("[Gateway] Carregando json");
+	printf("[Gateway] Carregando json");
+
 	if (!load_config("Config.json", device_id, application_id)) {
-		printf("Erro ao carregar o arquivo Config.json\n");
+		escreverlog("Erro ao carregar o arquivo Config.json");
 		return 1;
 	}
 
+	escreverlog("[Gateway] DEVICE_ID: %s", device_id);
+	escreverlog("[Gateway] APPLICATION_ID: %s", application_id);
 	printf("[Gateway] DEVICE_ID: %s\n", device_id);
 	printf("[Gateway] APPLICATION_ID: %s\n", application_id);
 
@@ -169,6 +177,7 @@ int main() {
 		exit(EXIT_FAILURE);
 	}
 
+	escreverlog("[Gateway] Aguardando pacotes na porta %d...", PORT);
 	printf("[Gateway] Aguardando pacotes na porta %d...\n", PORT);
 
 	while (1) {
@@ -180,28 +189,36 @@ int main() {
 			continue;
 		}
 
-		printf("\n[Gateway] Pacote recebido (%ld bytes) de %s:%d\n",
-			   recv_len,
-			   inet_ntoa(client_addr.sin_addr),
-			   ntohs(client_addr.sin_port));
+		escreverlog("\n[Gateway] Pacote recebido (%ld bytes) de %s:%d\n",
+			recv_len,
+			inet_ntoa(client_addr.sin_addr),
+			ntohs(client_addr.sin_port));
 
+		printf("\n[Gateway] Pacote recebido (%ld bytes) de %s:%d\n",
+			recv_len,
+			inet_ntoa(client_addr.sin_addr),
+			ntohs(client_addr.sin_port));
+
+		escreverlog("[Gateway] Conteúdo (hex):\n");
 		printf("[Gateway] Conteúdo (hex):\n");
 		for (ssize_t i = 0; i < recv_len; ++i) {
 			printf("%02X ", buffer[i]);
 		}
-		printf("\n");
+		
 
 		unsigned char base64_output[BUFFER_SIZE * 2];
 		size_t output_len;
 		int ret = mbedtls_base64_encode(base64_output, sizeof(base64_output), &output_len, buffer, recv_len);
 		if (ret != 0) {
-			printf("Erro ao codificar o pacote em Base64\n");
+			escreverlog("Erro ao codificar o pacote em Base64");
+			printf("Erro ao codificar o pacote em Base64");
 		} else {
-			printf("[Gateway] Pacote em Base64:\n%s\n", base64_output);
+			escreverlog("[Gateway] Pacote em Base64:%s", base64_output);
+			printf("[Gateway] Pacote em Base64:\n%s", base64_output);
 
 			cJSON *root = cJSON_CreateObject();
 			if (root == NULL) {
-				printf("Erro ao criar o objeto JSON\n");
+				escreverlog("Erro ao criar o objeto JSON");
 				continue;
 			}
 
@@ -221,9 +238,11 @@ int main() {
 
 			char *json_string = cJSON_Print(root);
 			if (json_string == NULL) {
+				escreverlog("Erro ao converter JSON para string");
 				printf("Erro ao converter JSON para string\n");
 			} else {
-				printf("[Gateway] JSON gerado:\n%s\n", json_string);
+				escreverlog("[Gateway] JSON gerado:\n%s", json_string);
+				printf("[Gateway] JSON gerado:\n%s", json_string);
 
 				FILE *file = fopen("uplink.json", "w");
 				if (file == NULL) {
@@ -232,6 +251,7 @@ int main() {
 					fprintf(file, "%s\n", json_string);
 					fclose(file);
 					printf("[Gateway] JSON salvo no arquivo 'uplink.json'\n");
+					escreverlog("[Gateway] JSON salvo no arquivo 'uplink.json'");
 				}
 
 				free(json_string);
@@ -241,6 +261,7 @@ int main() {
 		}
 
 		printf("[Gateway] Encerrando após receber o pacote.\n");
+		escreverlog("[Gateway] Encerrando após receber o pacote.");
 		break;
 	}
 

@@ -30,8 +30,7 @@ make clean
 
 # Saida #
 
-No terminal, é exibido o início do código e a espera pelo primeiro pacote. Como sua execução é solitária nesta pasta, ele nunca encerra automaticamente, sendo necessário utilizar CTRL + C para finalizá-lo. Para mais detalhes da execução, acesse os logs, localizados na pasta logs/ e em formato .txt.
-
+Durante a execução, o terminal exibirá a inicialização do código e aguardará a recepção do primeiro pacote. O processo é contínuo e não será finalizado automaticamente. Para interrompê-lo, será necessário utilizar o atalho CTRL + C. Para mais informações sobre a execução, consulte os logs gerados, localizados no diretório logs/, em formato .txt
 --------------------------------
 
 É isso. 
