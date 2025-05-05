@@ -81,6 +81,9 @@ Comandos de execução:
 
 // Fim bloco de log
 
+char pacote_hex[256] = {0};
+char temp[4];
+
 int send_to_ttn(const uint8_t *packet, int packet_len);
 int save_config(const char *filename, const Config *configs, int device_count);
 
@@ -158,13 +161,13 @@ int send_to_ttn(const uint8_t *packet, int packet_len) {
 	int sockfd;
 	struct sockaddr_in server_addr;
 
-	printf("Criando socket UDP...\n");
+	escreverlog("Criando socket UDP...");
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sockfd < 0) {
 		perror("Erro ao criar socket");
 		return -1;
 	}
-	printf("Socket criado com sucesso.\n");
+	escreverlog("Socket criado com sucesso.");
 
 	memset(&server_addr, 0, sizeof(server_addr));
 	server_addr.sin_family = AF_INET;
@@ -175,13 +178,13 @@ int send_to_ttn(const uint8_t *packet, int packet_len) {
 		return -1;
 	}
 
-	printf("Enviando pacote para o servidor local (127.0.0.1:1700)...\n");
+	escreverlog("Enviando pacote para o servidor local (127.0.0.1:1700)...");
 	if (sendto(sockfd, packet, packet_len, 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
 		perror("Erro ao enviar pacote");
 		close(sockfd);
 		return -1;
 	}
-	printf("Pacote enviado para o servidor local com sucesso!\n");
+	escreverlog("Pacote enviado para o servidor local com sucesso!");
 
 	close(sockfd);
 	return 0;
@@ -191,27 +194,24 @@ int main() {
 	iniciarlog();
 	escreverlog("Simulador Iniciado");
 
-//	printf("[LoRaWAN] Simulador de dispositivo iniciado\n");
+	printf("[LoRaWAN] Simulador de dispositivo iniciado\n");
 
 	Config configs[MAX_DEVICES];
 	int device_count = 0;
 
-//	printf("Carregando configurações do arquivo Config.json...\n");
-
 	escreverlog("Carregando Json");
 
 	if (!load_config("Config.json", configs, &device_count)) {
-		//printf("Erro ao carregar o arquivo Config.json\n");
+		printf("Erro ao carregar o arquivo Config.json\n");
 		escreverlog("Erro ao carregar o arquivo Config.json");
 		return 1;
 	}
-//	printf("Configurações carregadas com sucesso. Dispositivos encontrados: %d\n", device_count);
+	
 	escreverlog("Configurações carregadas com sucesso. Dispositivos encontrados: %d\n", device_count);
 
 	for (int i = 0; i < device_count; i++) {
 		Config *cfg = &configs[i];
 
-		//printf("Montando o pacote para o dispositivo %d (DevEUI: %s)...\n", i + 1, cfg->deveui);
 		escreverlog("Montando o pacote para o dispositivo %d (DevEUI: %s)...", i + 1, cfg->deveui);
 
 		uint8_t packet[64];
@@ -221,37 +221,35 @@ int main() {
 		);
 
 		if (packet_len <= 0) {
-			//printf("Erro ao montar pacote para o dispositivo %d\n", i + 1);
 			escreverlog("Erro ao montar pacote para o dispositivo %d", i + 1);
 			continue;
 		}
 
-		//printf("Pacote montado para o dispositivo %d: ", i + 1);
 		escreverlog("Pacote montado para o dispositivo %d: ", i + 1);
 		for (int j = 0; j < packet_len; j++) {
-			//printf("%02X ", packet[j]);
-			escreverlog("%02X ", packet[j]);
+			snprintf(temp, sizeof(temp), "%02X", packet[j]);
+			strcat(pacote_hex, temp);
 		}
-		//printf("\n");
+		escreverlog("Pacote montado para o dispositivo %d: %s", i + 1, pacote_hex);
+			memset(pacote_hex, 0, sizeof(pacote_hex));
+			memset(temp, 0, sizeof(temp));
 
-		//printf("Enviando pacote para o dispositivo %d...\n", i + 1);
 		escreverlog("Enviando pacote para o dispositivo %d...", i + 1);
 		if (send_to_ttn(packet, packet_len) != 0) {
-			//printf("Erro ao enviar pacote para o dispositivo %d\n", i + 1);
 			escreverlog("Erro ao enviar pacote para o dispositivo %d", i + 1);
 			continue;
 		}
 
-		//printf("Pacote enviado com sucesso para o dispositivo %d!\n", i + 1);
+		printf("Pacote enviado com sucesso para o dispositivo %d!\n", i + 1);
 		escreverlog("Pacote enviado com sucesso para o dispositivo %d!\n", i + 1);
 		cfg->fcnt += 1;
 
 		if (!save_config("Config.json", configs, device_count)) {
-			//printf("Erro ao salvar o arquivo Config.json para o dispositivo %d\n", i + 1);
 			escreverlog("Erro ao salvar o arquivo Config.json para o dispositivo %d", i + 1);
 		}
 	}
 
 	fecharlog();
+	printf("[LoRaWAN] Simulador de dispositivo finalizado\n");
 	return 0;
 }
