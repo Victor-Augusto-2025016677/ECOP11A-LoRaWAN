@@ -74,8 +74,8 @@ int save_config(const char *filename, const Config *configs, int device_count);
 int save_config(const char *filename, const Config *configs, int device_count) {
     FILE *file = fopen(filename, "r");
     if (!file) {
-        perror("Erro ao abrir o arquivo para leitura");
-        escreverlog("Erro ao abrir o arquivo para leitura: %s", filename);
+        perror("[Main] Erro ao abrir o arquivo para leitura");
+        escreverlog("[Main] Erro ao abrir o arquivo para leitura: %s", filename);
         return 0;
     }
 
@@ -85,8 +85,8 @@ int save_config(const char *filename, const Config *configs, int device_count) {
 
     char *file_content = (char *)malloc(file_size + 1);
     if (!file_content) {
-        perror("Erro ao alocar memória");
-        escreverlog("Erro ao alocar memória para o conteúdo do arquivo");
+        perror("[Main] Erro ao alocar memória");
+        escreverlog("[Main] Erro ao alocar memória para o conteúdo do arquivo");
         fclose(file);
         return 0;
     }
@@ -99,15 +99,15 @@ int save_config(const char *filename, const Config *configs, int device_count) {
     free(file_content);
 
     if (!json) {
-        printf("Erro ao analisar o JSON: %s\n", cJSON_GetErrorPtr());
-        escreverlog("Erro ao analisar o JSON: %s", cJSON_GetErrorPtr());
+        printf("[Main] Erro ao analisar o JSON: %s\n", cJSON_GetErrorPtr());
+        escreverlog("[Main] Erro ao analisar o JSON: %s", cJSON_GetErrorPtr());
         return 0;
     }
 
     cJSON *devices = cJSON_GetObjectItemCaseSensitive(json, "devices");
     if (!cJSON_IsArray(devices)) {
-        printf("Erro: 'devices' não é um array no Config.json\n");
-        escreverlog("Erro: 'devices' não é um array no Config.json");
+        printf("[Main] Erro: 'devices' não é um array no Config.json\n");
+        escreverlog("[Main] Erro: 'devices' não é um array no Config.json");
         cJSON_Delete(json);
         return 0;
     }
@@ -123,16 +123,16 @@ int save_config(const char *filename, const Config *configs, int device_count) {
 
     file = fopen(filename, "w");
     if (!file) {
-        perror("Erro ao abrir o arquivo para escrita");
-        escreverlog("Erro ao abrir o arquivo para escrita: %s", filename);
+        perror("[Main] Erro ao abrir o arquivo para escrita");
+        escreverlog("[Main] Erro ao abrir o arquivo para escrita: %s", filename);
         cJSON_Delete(json);
         return 0;
     }
 
     char *json_string = cJSON_Print(json);
     if (!json_string) {
-        perror("Erro ao converter JSON");
-        escreverlog("Erro ao converter JSON para string");
+        perror("[Main] Erro ao converter JSON");
+        escreverlog("[Main] Erro ao converter JSON para string");
         cJSON_Delete(json);
         fclose(file);
         return 0;
@@ -186,38 +186,38 @@ int wait_for_ack(int sockfd) {
 int main() {
     iniciarlog();
 
-    printf("[LoRaWAN] Simulador de dispositivo iniciado\n");
-    escreverlog("[LoRaWAN] Simulador de dispositivo iniciado");
+    printf("[Main] Simulador de dispositivo iniciado\n");
+    escreverlog("[Main] Simulador de dispositivo iniciado");
 
     Config configs[MAX_DEVICES];
     int device_count = 0;
 
-    escreverlog("Carregando configurações do arquivo Config.json...");
+    escreverlog("[Main] Carregando configurações do arquivo Config.json...");
     if (!load_config("config/Config.json", configs, &device_count)) {
-        printf("Erro ao carregar o arquivo Config.json\n");
-        escreverlog("Erro ao carregar o arquivo Config.json");
+        printf("[Main] Erro ao carregar o arquivo Config.json\n");
+        escreverlog("[Main] Erro ao carregar o arquivo Config.json");
         return 1;
     }
 
-    printf("Configurações carregadas com sucesso. Dispositivos encontrados: %d\n", device_count);
-    escreverlog("Configurações carregadas com sucesso. Dispositivos encontrados: %d", device_count);
+    printf("[Main] Configurações carregadas com sucesso. Dispositivos encontrados: %d\n", device_count);
+    escreverlog("[Main] Configurações carregadas com sucesso. Dispositivos encontrados: %d", device_count);
 
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
-        perror("Erro ao criar socket");
-        escreverlog("Erro ao criar socket");
+        perror("[Main] Erro ao criar socket");
+        escreverlog("[Main] Erro ao criar socket");
         return 1;
     }
 
-    escreverlog("Socket UDP criado com sucesso");
+    escreverlog("[Main] Socket UDP criado com sucesso");
 
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(1700);
     if (inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr) <= 0) {
-        perror("Erro ao configurar o endereço do servidor");
-        escreverlog("Erro ao configurar o endereço do servidor");
+        perror("[Main] Erro ao configurar o endereço do servidor");
+        escreverlog("[Main] Erro ao configurar o endereço do servidor");
         close(sockfd);
         return 1;
     }
@@ -225,7 +225,7 @@ int main() {
     for (int i = 0; i < device_count; i++) {
         Config *cfg = &configs[i];
 
-        escreverlog("Montando o pacote para o dispositivo %d (DevEUI: %s)...", i + 1, cfg->deveui);
+        escreverlog("[Main] Montando o pacote para o dispositivo %d (DevEUI: %s)...", i + 1, cfg->deveui);
 
         uint8_t packet[64];
         int packet_len = lorawan_build_uplink(
@@ -234,30 +234,30 @@ int main() {
         );
 
         if (packet_len <= 0) {
-            printf("Erro ao montar pacote para o dispositivo %d\n", i + 1);
-            escreverlog("Erro ao montar pacote para o dispositivo %d", i + 1);
+            printf("[Main] Erro ao montar pacote para o dispositivo %d\n", i + 1);
+            escreverlog("[Main] Erro ao montar pacote para o dispositivo %d", i + 1);
             continue;
         }
 
-        escreverlog("Pacote montado para o dispositivo %d:\n", i + 1);
+        escreverlog("[Main] Pacote montado para o dispositivo %d:\n", i + 1);
         char hex_buf[3 * 64] = {0};
         for (int j = 0; j < packet_len; j++) {
             char byte_str[4];
             snprintf(byte_str, sizeof(byte_str), "%02X ", packet[j]);
             strcat(hex_buf, byte_str);
         }
-        escreverlog("%s\n", hex_buf);
+        escreverlog("[Main] %s\n", hex_buf);
 
         int ack_received = 0;
         while (!ack_received) {
-            escreverlog("Enviando pacote para o dispositivo %d...", i + 1);
+            escreverlog("[Main] Enviando pacote para o dispositivo %d...", i + 1);
 
             if (send_to_gateway(sockfd, packet, packet_len, &server_addr) != 0) {
-                escreverlog("Erro ao enviar pacote para o dispositivo %d", i + 1);
+                escreverlog("[Main] Erro ao enviar pacote para o dispositivo %d", i + 1);
                 continue;
             }
 
-            escreverlog("Pacote enviado com sucesso para o dispositivo %d! Aguardando ACK...", i + 1);
+            escreverlog("[Main] Pacote enviado com sucesso para o dispositivo %d! Aguardando ACK...", i + 1);
             ack_received = wait_for_ack(sockfd);
 
             if (!ack_received) {
@@ -268,20 +268,20 @@ int main() {
             }
         }
 
-        printf("ACK recebido do gateway para o dispositivo %d.\n", i + 1);
-        escreverlog("ACK recebido do gateway para o dispositivo %d", i + 1);
+        printf("[Main] ACK recebido do gateway para o dispositivo %d.\n", i + 1);
+        escreverlog("[Main] ACK recebido do gateway para o dispositivo %d", i + 1);
 
         cfg->fcnt += 1;
 
         if (!save_config("config/Config.json", configs, device_count)) {
-            printf("Erro ao salvar o arquivo Config.json para o dispositivo %d\n", i + 1);
-            escreverlog("Erro ao salvar o arquivo Config.json para o dispositivo %d", i + 1);
+            printf("[Main] Erro ao salvar o arquivo Config.json para o dispositivo %d\n", i + 1);
+            escreverlog("[Main] Erro ao salvar o arquivo Config.json para o dispositivo %d", i + 1);
         }
     }
 
     close(sockfd);
-    printf("Socket fechado.\n");
-    escreverlog("Socket fechado");
+    printf("[Main] Socket fechado.\n");
+    escreverlog("[Main] Socket fechado");
 
     fecharlog();
     return 0;
