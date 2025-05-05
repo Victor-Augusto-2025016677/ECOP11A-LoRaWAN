@@ -15,9 +15,7 @@
 #include "Config.h"
 
 // Início bloco de log
-
 #include <stdarg.h>
-
 
 FILE *log_file = NULL;
 char nomedolog[64];
@@ -25,7 +23,7 @@ char nomedolog[64];
 void gerar_nome_log(char *buffer, size_t tamanho) {
     time_t agora = time(NULL);
     struct tm *tm_info = localtime(&agora);
-    strftime(buffer, tamanho, "logs/log_%Y%m%d_%H%M%S.txt", tm_info);
+    strftime(buffer, tamanho, "logs/log_Envio_%Y%m%d_%H%M%S.txt", tm_info);
 }
 
 const char* current_time_str() {
@@ -67,19 +65,6 @@ void fecharlog() {
     }
 }
 
-/*
-Comandos de execução:
-
-    iniciarlog();
-
-    escreverlog("texto aqui"); // as timestamp são adicionadas automaticamente na função
-
-    fecharlog();
-
-    escreverlog("texto aqui: %d operador", variavel);
-
-*/
-
 // Fim bloco de log
 
 int send_to_gateway(int sockfd, const uint8_t *packet, int packet_len, struct sockaddr_in *server_addr);
@@ -90,6 +75,7 @@ int save_config(const char *filename, const Config *configs, int device_count) {
     FILE *file = fopen(filename, "r");
     if (!file) {
         perror("Erro ao abrir o arquivo para leitura");
+        escreverlog("Erro ao abrir o arquivo para leitura: %s", filename);
         return 0;
     }
 
@@ -99,7 +85,8 @@ int save_config(const char *filename, const Config *configs, int device_count) {
 
     char *file_content = (char *)malloc(file_size + 1);
     if (!file_content) {
-        perror("Erro ao alocar memória para o conteúdo do arquivo");
+        perror("Erro ao alocar memória");
+        escreverlog("Erro ao alocar memória para o conteúdo do arquivo");
         fclose(file);
         return 0;
     }
@@ -113,12 +100,14 @@ int save_config(const char *filename, const Config *configs, int device_count) {
 
     if (!json) {
         printf("Erro ao analisar o JSON: %s\n", cJSON_GetErrorPtr());
+        escreverlog("Erro ao analisar o JSON: %s", cJSON_GetErrorPtr());
         return 0;
     }
 
     cJSON *devices = cJSON_GetObjectItemCaseSensitive(json, "devices");
     if (!cJSON_IsArray(devices)) {
         printf("Erro: 'devices' não é um array no Config.json\n");
+        escreverlog("Erro: 'devices' não é um array no Config.json");
         cJSON_Delete(json);
         return 0;
     }
@@ -135,13 +124,15 @@ int save_config(const char *filename, const Config *configs, int device_count) {
     file = fopen(filename, "w");
     if (!file) {
         perror("Erro ao abrir o arquivo para escrita");
+        escreverlog("Erro ao abrir o arquivo para escrita: %s", filename);
         cJSON_Delete(json);
         return 0;
     }
 
     char *json_string = cJSON_Print(json);
     if (!json_string) {
-        perror("Erro ao converter JSON para string");
+        perror("Erro ao converter JSON");
+        escreverlog("Erro ao converter JSON para string");
         cJSON_Delete(json);
         fclose(file);
         return 0;
@@ -159,9 +150,10 @@ int save_config(const char *filename, const Config *configs, int device_count) {
 int send_to_gateway(int sockfd, const uint8_t *packet, int packet_len, struct sockaddr_in *server_addr) {
     if (sendto(sockfd, packet, packet_len, 0, (struct sockaddr *)server_addr, sizeof(*server_addr)) < 0) {
         perror("[Main] Erro ao enviar pacote");
+        escreverlog("[Main] Erro ao enviar pacote");
         return -1;
     }
-    printf("[Main] Pacote enviado para o Gateway.\n");
+    escreverlog("[Main] Pacote enviado para o Gateway");
     return 0;
 }
 
@@ -174,41 +166,50 @@ int wait_for_ack(int sockfd) {
                                (struct sockaddr *)&from_addr, &addr_len);
 
     if (ack_len < 0) {
-        perror("[Main] Erro ao receber ACK do Gateway");
+        perror("[Main] Erro ao receber ACK");
+        escreverlog("[Main] Erro ao receber ACK do Gateway");
         return 0;
     }
 
     ack_buffer[ack_len] = '\0';
-    printf("[Main] Resposta recebida do Gateway: %s\n", ack_buffer);
+    escreverlog("[Main] Resposta recebida do Gateway: %s", ack_buffer);
 
     if (strncmp(ack_buffer, "ACK", 3) == 0) {
-        printf("[Main] ACK recebido do Gateway.\n");
+        escreverlog("[Main] ACK recebido do Gateway");
         return 1;
     }
 
-    printf("[Main] Resposta inesperada do Gateway: %s\n", ack_buffer);
+    escreverlog("[Main] Resposta inesperada do Gateway: %s", ack_buffer);
     return 0;
 }
 
 int main() {
+    iniciarlog();
+
     printf("[LoRaWAN] Simulador de dispositivo iniciado\n");
+    escreverlog("[LoRaWAN] Simulador de dispositivo iniciado");
 
     Config configs[MAX_DEVICES];
     int device_count = 0;
 
-    printf("Carregando configurações do arquivo Config.json...\n");
+    escreverlog("Carregando configurações do arquivo Config.json...");
     if (!load_config("config/Config.json", configs, &device_count)) {
         printf("Erro ao carregar o arquivo Config.json\n");
+        escreverlog("Erro ao carregar o arquivo Config.json");
         return 1;
     }
+
     printf("Configurações carregadas com sucesso. Dispositivos encontrados: %d\n", device_count);
+    escreverlog("Configurações carregadas com sucesso. Dispositivos encontrados: %d", device_count);
 
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
         perror("Erro ao criar socket");
+        escreverlog("Erro ao criar socket");
         return 1;
     }
-    printf("Socket UDP criado com sucesso.\n");
+
+    escreverlog("Socket UDP criado com sucesso");
 
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
@@ -216,6 +217,7 @@ int main() {
     server_addr.sin_port = htons(1700);
     if (inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr) <= 0) {
         perror("Erro ao configurar o endereço do servidor");
+        escreverlog("Erro ao configurar o endereço do servidor");
         close(sockfd);
         return 1;
     }
@@ -223,7 +225,7 @@ int main() {
     for (int i = 0; i < device_count; i++) {
         Config *cfg = &configs[i];
 
-        printf("Montando o pacote para o dispositivo %d (DevEUI: %s)...\n", i + 1, cfg->deveui);
+        escreverlog("Montando o pacote para o dispositivo %d (DevEUI: %s)...", i + 1, cfg->deveui);
 
         uint8_t packet[64];
         int packet_len = lorawan_build_uplink(
@@ -233,25 +235,29 @@ int main() {
 
         if (packet_len <= 0) {
             printf("Erro ao montar pacote para o dispositivo %d\n", i + 1);
+            escreverlog("Erro ao montar pacote para o dispositivo %d", i + 1);
             continue;
         }
 
-        printf("Pacote montado para o dispositivo %d: ", i + 1);
+        escreverlog("Pacote montado para o dispositivo %d:\n", i + 1);
+        char hex_buf[3 * 64] = {0};
         for (int j = 0; j < packet_len; j++) {
-            printf("%02X ", packet[j]);
+            char byte_str[4];
+            snprintf(byte_str, sizeof(byte_str), "%02X ", packet[j]);
+            strcat(hex_buf, byte_str);
         }
-        printf("\n");
+        escreverlog("%s\n", hex_buf);
 
         int ack_received = 0;
         while (!ack_received) {
-            printf("Enviando pacote para o dispositivo %d...\n", i + 1);
+            escreverlog("Enviando pacote para o dispositivo %d...", i + 1);
+
             if (send_to_gateway(sockfd, packet, packet_len, &server_addr) != 0) {
-                printf("Erro ao enviar pacote para o dispositivo %d\n", i + 1);
+                escreverlog("Erro ao enviar pacote para o dispositivo %d", i + 1);
                 continue;
             }
 
-            printf("Pacote enviado com sucesso para o dispositivo %d! Aguardando ACK...\n", i + 1);
-
+            escreverlog("Pacote enviado com sucesso para o dispositivo %d! Aguardando ACK...", i + 1);
             ack_received = wait_for_ack(sockfd);
 
             if (!ack_received) {
@@ -263,15 +269,20 @@ int main() {
         }
 
         printf("ACK recebido do gateway para o dispositivo %d.\n", i + 1);
+        escreverlog("ACK recebido do gateway para o dispositivo %d", i + 1);
+
         cfg->fcnt += 1;
 
         if (!save_config("config/Config.json", configs, device_count)) {
             printf("Erro ao salvar o arquivo Config.json para o dispositivo %d\n", i + 1);
+            escreverlog("Erro ao salvar o arquivo Config.json para o dispositivo %d", i + 1);
         }
     }
 
     close(sockfd);
     printf("Socket fechado.\n");
+    escreverlog("Socket fechado");
 
+    fecharlog();
     return 0;
 }
