@@ -204,10 +204,12 @@ int main() {
             escreverlog("Pacote muito curto para conter DevAddr");
             continue;
         }
+        
+        // Corrigido: Extrai DevAddr corretamente do buffer
         char devaddr_hex[9] = {0};
         snprintf(devaddr_hex, sizeof(devaddr_hex), "%02X%02X%02X%02X", 
-                 recv_buffer[0], recv_buffer[1], recv_buffer[2], recv_buffer[3]);
-    
+        recv_buffer[1], recv_buffer[2], recv_buffer[3], recv_buffer[4]);
+
         // Log do DevAddr extraído
         escreverlog("[Gateway] DevAddr extraído (hex): %s", devaddr_hex);
     
@@ -254,15 +256,18 @@ int main() {
         cJSON *root = cJSON_CreateObject();
         cJSON_AddItemToObject(root, "rxpk", rxpk_array);
     
-        // Salvar em /out/Saida.json
-        FILE *saida = fopen("out/Saida.json", "w");
+        // Salvar em um arquivo específico para cada dispositivo
+        char output_filename[128];
+        snprintf(output_filename, sizeof(output_filename), "out/Saida_Dispositivo_%d.json", processed_count + 1);
+        
+        FILE *saida = fopen(output_filename, "w");
         if (!saida) {
-            escreverlog("Erro ao abrir /out/Saida.json para escrita");
+            escreverlog("Erro ao abrir %s para escrita", output_filename);
         } else {
             char *saida_str = cJSON_Print(root);
             if (saida_str) {
                 fputs(saida_str, saida);
-                escreverlog("Pacote JSON Semtech salvo em /out/Saida.json");
+                escreverlog("Pacote JSON Semtech salvo em %s", output_filename);
                 free(saida_str);
             }
             fclose(saida);

@@ -17,13 +17,16 @@ int lorawan_build_uplink(
 
     // 1. Cabeçalho de Controle
     out_buffer[index++] = 0x40;  // Indicador de uplink
-    out_buffer[index++] = (uint8_t)(devAddr & 0xFF);
-    out_buffer[index++] = (uint8_t)((devAddr >> 8) & 0xFF);
-    out_buffer[index++] = (uint8_t)((devAddr >> 16) & 0xFF);
-    out_buffer[index++] = (uint8_t)((devAddr >> 24) & 0xFF);
+
+    // Montando o devAddr corretamente (Big Endian)
+    out_buffer[index++] = (uint8_t)((devAddr >> 24) & 0xFF);  // MSB
+    out_buffer[index++] = (uint8_t)((devAddr >> 16) & 0xFF);  // Byte 3
+    out_buffer[index++] = (uint8_t)((devAddr >> 8) & 0xFF);   // Byte 2
+    out_buffer[index++] = (uint8_t)(devAddr & 0xFF);          // LSB
+
     out_buffer[index++] = 0x00;  // Reservado
-    out_buffer[index++] = (uint8_t)(fcnt & 0xFF);  // Contador de quadros (LSB)
-    out_buffer[index++] = (uint8_t)((fcnt >> 8) & 0xFF);  // Contador de quadros (MSB)
+    out_buffer[index++] = (uint8_t)(fcnt & 0xFF);             // Contador de quadros (LSB)
+    out_buffer[index++] = (uint8_t)((fcnt >> 8) & 0xFF);      // Contador de quadros (MSB)
     out_buffer[index++] = fport;  // Porta de aplicação
 
     // 2. Criptografia do Payload
