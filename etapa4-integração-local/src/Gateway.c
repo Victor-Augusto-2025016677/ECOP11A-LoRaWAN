@@ -64,32 +64,6 @@ void fecharlog() {
 }
 // Fim bloco de log
 
-uint16_t generate_token() {
-    return (uint16_t)(rand() & 0xFFFF);
-}
-
-int encapsulate_semtech_packet(uint8_t *output_buffer, size_t buffer_size, const char *json_payload, const uint8_t *gateway_eui) {
-    if (strlen(json_payload) > buffer_size - 12) {
-        printf("Erro: Payload JSON excede o tamanho máximo permitido.\n");
-        escreverlog("Erro: Payload JSON excede o tamanho máximo permitido");
-        return -1;
-    }
-
-    memset(output_buffer, 0, buffer_size);
-
-    output_buffer[0] = PROTOCOL_VERSION;
-    uint16_t token = generate_token();
-    output_buffer[1] = (uint8_t)(token >> 8);
-    output_buffer[2] = (uint8_t)(token & 0xFF);
-    output_buffer[3] = PUSH_DATA;
-
-    memcpy(&output_buffer[4], gateway_eui, 8);
-
-    snprintf((char *)&output_buffer[12], buffer_size - 12, "%s", json_payload);
-
-    return 12 + strlen(json_payload);
-}
-
 int load_devices(const char *filename, cJSON **devices) {
     FILE *file = fopen(filename, "r");
     if (!file) {
@@ -159,7 +133,6 @@ int main() {
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof(client_addr);
     unsigned char recv_buffer[BUFFER_SIZE];
-    unsigned char send_buffer[BUFFER_SIZE];
     ssize_t recv_len;
 
     cJSON *devices = NULL;
@@ -196,7 +169,6 @@ int main() {
     escreverlog("[Gateway] Aguardando pacotes na porta %d", PORT);
 
     int processed_count = 0;
-    uint8_t gateway_eui[8] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
 
     while (processed_count < device_count) {
         recv_len = recvfrom(sockfd, recv_buffer, BUFFER_SIZE, 0,
@@ -235,23 +207,6 @@ int main() {
             escreverlog("Erro ao criar string JSON");
             cJSON_Delete(root);
             continue;
-        }
-
-        memset(send_buffer, 0, BUFFER_SIZE);
-        int packet_len = encapsulate_semtech_packet(send_buffer, sizeof(send_buffer), json_string, gateway_eui);
-        if (packet_len < 0) {
-            escreverlog("Erro ao encapsular pacote no formato Semtech");
-            free(json_string);
-            cJSON_Delete(root);
-            continue;
-        }
-
-        if (sendto(sockfd, send_buffer, packet_len, 0, (struct sockaddr *)&client_addr, addr_len) < 0) {
-            perror("Erro ao enviar pacote encapsulado");
-            escreverlog("Erro ao enviar pacote encapsulado");
-        } else {
-            printf("[Gateway] Pacote encapsulado enviado com sucesso.\n");
-            escreverlog("[Gateway] Pacote encapsulado enviado com sucesso");
         }
 
         free(json_string);
