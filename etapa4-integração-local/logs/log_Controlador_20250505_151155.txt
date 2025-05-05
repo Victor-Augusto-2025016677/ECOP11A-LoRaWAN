@@ -1,0 +1,16 @@
+========== NOVA EXECUÇÃO (2025-05-05 15:11:55) ==========
+
+[2025-05-05 15:11:55] [Controlador] Código iniciado
+[2025-05-05 15:11:55] [Controlador] Menu Inicial aberto
+[2025-05-05 15:11:55] [Controlador] Opção de escolha impressa
+[2025-05-05 15:11:56] [Controlador] Escolha lida
+[2025-05-05 15:11:56] [Controlador] Optou por não alterar o json
+[2025-05-05 15:11:57] [Controlador] Executando o gateway
+[2025-05-05 15:11:57] [Controlador] [Gateway] Executando com PID 39386
+[2025-05-05 15:11:57] [Controlador] [Gateway] Iniciando...
+[2025-05-05 15:11:58] [Controlador] Executando o Main
+[2025-05-05 15:11:58] [Controlador] [Main] Executando com PID 39403
+[2025-05-05 15:11:58] [Controlador] [Main] Iniciando...
+[2025-05-05 15:11:59] [Controlador] Execução finalizada.
+
+========== FINAL EXECUÇÃO (2025-05-05 15:11:59) ==========

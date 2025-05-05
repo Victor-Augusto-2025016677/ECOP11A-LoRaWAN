@@ -1,0 +1,36 @@
+========== NOVA EXECUÇÃO (2025-05-05 15:11:58) ==========
+
+[2025-05-05 15:11:58] [Main] Simulador de dispositivo iniciado
+[2025-05-05 15:11:58] [Main] Carregando configurações do arquivo Config.json...
+[2025-05-05 15:11:58] [Main] Configurações carregadas com sucesso. Dispositivos encontrados: 2
+[2025-05-05 15:11:58] [Main] Socket UDP criado com sucesso
+[2025-05-05 15:11:58] [Main] Montando o pacote para o dispositivo 1 (DevEUI: 70B3D57ED007035A)...
+[2025-05-05 15:11:58] [Main] Pacote montado para o dispositivo 1:
+
+[2025-05-05 15:11:58] [Main] 40 BA EC 0C 26 00 02 00 0A 82 41 3A 8E 54 40 
+
+[2025-05-05 15:11:58] [Main] Enviando pacote para o dispositivo 1...
+[2025-05-05 15:11:58] [Main] Pacote enviado para o Gateway
+[2025-05-05 15:11:58] [Main] Pacote enviado com sucesso para o dispositivo 1! Aguardando ACK...
+[2025-05-05 15:11:58] [Main] Resposta recebida do Gateway: ACK
+[2025-05-05 15:11:58] [Main] ACK recebido do Gateway
+[2025-05-05 15:11:58] [Main] ACK recebido do gateway para o dispositivo 1
+[2025-05-05 15:11:58] [Main] Montando o pacote para o dispositivo 2 (DevEUI: 70B3D57ED0070507)...
+[2025-05-05 15:11:58] [Main] Pacote montado para o dispositivo 2:
+
+[2025-05-05 15:11:58] [Main] 40 CF F6 0C 26 00 02 00 0F 8F 0A BF 7C FE C2 
+
+[2025-05-05 15:11:58] [Main] Enviando pacote para o dispositivo 2...
+[2025-05-05 15:11:58] [Main] Pacote enviado para o Gateway
+[2025-05-05 15:11:58] [Main] Pacote enviado com sucesso para o dispositivo 2! Aguardando ACK...
+[2025-05-05 15:11:58] [Main] Resposta recebida do Gateway: Eg
+[2025-05-05 15:11:58] [Main] Resposta inesperada do Gateway: Eg
+[2025-05-05 15:11:59] [Main] Enviando pacote para o dispositivo 2...
+[2025-05-05 15:11:59] [Main] Pacote enviado para o Gateway
+[2025-05-05 15:11:59] [Main] Pacote enviado com sucesso para o dispositivo 2! Aguardando ACK...
+[2025-05-05 15:11:59] [Main] Resposta recebida do Gateway: ACK
+[2025-05-05 15:11:59] [Main] ACK recebido do Gateway
+[2025-05-05 15:11:59] [Main] ACK recebido do gateway para o dispositivo 2
+[2025-05-05 15:11:59] [Main] Socket fechado
+
+========== FINAL EXECUÇÃO (2025-05-05 15:11:59) ==========

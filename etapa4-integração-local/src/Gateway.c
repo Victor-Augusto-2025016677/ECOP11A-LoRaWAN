@@ -21,7 +21,7 @@ char nomedolog[64];
 void gerar_nome_log(char *buffer, size_t tamanho) {
     time_t agora = time(NULL);
     struct tm *tm_info = localtime(&agora);
-    strftime(buffer, tamanho, "logs/log_gateway_%Y%m%d_%H%M%S.txt", tm_info);
+    strftime(buffer, tamanho, "logs/log_Gateway_%Y%m%d_%H%M%S.txt", tm_info);
 }
 
 const char* current_time_str() {
@@ -139,15 +139,14 @@ void send_ack(int sockfd, struct sockaddr_in *client_addr, socklen_t addr_len) {
 
     ssize_t sent_len = sendto(sockfd, ack_message, strlen(ack_message), 0,
                               (struct sockaddr *)client_addr, addr_len);
+
     if (sent_len < 0) {
         perror("[Gateway] Erro ao enviar ACK");
-        escreverlog("[Gateway] Erro ao enviar ACK");
     } else if (sent_len != (ssize_t)strlen(ack_message)) {
         printf("[Gateway] Erro: ACK enviado parcialmente (%ld bytes).\n", sent_len);
-        escreverlog("[Gateway] ACK enviado parcialmente (%ld bytes)", sent_len);
     } else {
-        printf("[Gateway] ACK enviado para o dispositivo.\n");
-        escreverlog("[Gateway] ACK enviado com sucesso");
+        printf("[Gateway] ACK enviado com sucesso para %s:%d.\n",
+               inet_ntoa(client_addr->sin_addr), ntohs(client_addr->sin_port));
     }
 }
 

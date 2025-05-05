@@ -22,6 +22,7 @@ etapa4-integração-local/
 │   ├── aes_cmac.c # Implementação de funções AES-CMAC 
 │   ├── Config.c # Manipulação do Config.json 
 │   ├── Gateway.c # Implementação do gateway local 
+│   ├── Controlador.c # Implementação do controlador
 │   ├── lorawan.c # Construção de pacotes LoRaWAN 
 │   └── Main.c # Simulador de dispositivos LoRaWAN
 │
@@ -98,17 +99,19 @@ payload: Dados a serem enviados pelo dispositivo.
 
 Execute o terminal na pasta e em seguida: 
 
+```bash
+
 make
+
+```
 
 ## Execução:
 
-Execute o Gateway primeiro: 
+```bash
 
-./bin/Gateway
+./bin/Controlador.exe
 
-Em outro terminal na pasta, execute o Main:
-
-./bin/Main
+```
 
 ## Funcionamento: 
 
@@ -124,13 +127,17 @@ O simulador irá:
 
 ## Depuração
 
-Leia o terminal
+Leia o terminal e se necessário, abra os logs na pasta /logs. Estão separados por tempo de execução e o nome de qual programa criou ele.
 
 ## Limpeza
 
 Execute no terminal dentro da pasta: 
 
+```bash
+
 make clean
+
+```
 
 ## Final
 
