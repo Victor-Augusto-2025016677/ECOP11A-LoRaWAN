@@ -5,6 +5,8 @@
 #include <arpa/inet.h>
 #include <mbedtls/base64.h>
 #include <cjson/cJSON.h>
+#include <time.h>
+#include <stdarg.h>
 
 #define PORT 1700
 #define BUFFER_SIZE 1024
@@ -13,11 +15,6 @@
 #define PUSH_DATA 0x00
 
 // Início bloco de log
-
-#include <time.h>
-#include <stdarg.h>
-
-
 FILE *log_file = NULL;
 char nomedolog[64];
 
@@ -65,20 +62,6 @@ void fecharlog() {
         log_file = NULL;
     }
 }
-
-/*
-Comandos de execução:
-
-    iniciarlog();
-
-    escreverlog("texto aqui"); // as timestamp são adicionadas automaticamente na função
-
-    fecharlog();
-
-    escreverlog("texto aqui: %d operador", variavel);
-
-*/
-
 // Fim bloco de log
 
 uint16_t generate_token() {
@@ -88,6 +71,7 @@ uint16_t generate_token() {
 int encapsulate_semtech_packet(uint8_t *output_buffer, size_t buffer_size, const char *json_payload, const uint8_t *gateway_eui) {
     if (strlen(json_payload) > buffer_size - 12) {
         printf("Erro: Payload JSON excede o tamanho máximo permitido.\n");
+        escreverlog("Erro: Payload JSON excede o tamanho máximo permitido");
         return -1;
     }
 
@@ -110,6 +94,7 @@ int load_devices(const char *filename, cJSON **devices) {
     FILE *file = fopen(filename, "r");
     if (!file) {
         perror("Erro ao abrir o arquivo Config.json");
+        escreverlog("Erro ao abrir o arquivo Config.json");
         return 0;
     }
 
@@ -119,7 +104,8 @@ int load_devices(const char *filename, cJSON **devices) {
 
     char *file_content = (char *)malloc(file_size + 1);
     if (!file_content) {
-        perror("Erro ao alocar memória para o conteúdo do arquivo");
+        perror("Erro ao alocar memória");
+        escreverlog("Erro ao alocar memória para conteúdo do arquivo");
         fclose(file);
         return 0;
     }
@@ -133,12 +119,14 @@ int load_devices(const char *filename, cJSON **devices) {
 
     if (!json) {
         printf("Erro ao analisar o JSON: %s\n", cJSON_GetErrorPtr());
+        escreverlog("Erro ao analisar o JSON: %s", cJSON_GetErrorPtr());
         return 0;
     }
 
     *devices = cJSON_GetObjectItemCaseSensitive(json, "devices");
     if (!cJSON_IsArray(*devices)) {
         printf("Erro: 'devices' não é um array no Config.json\n");
+        escreverlog("Erro: 'devices' não é um array no Config.json");
         cJSON_Delete(json);
         return 0;
     }
@@ -147,21 +135,27 @@ int load_devices(const char *filename, cJSON **devices) {
 }
 
 void send_ack(int sockfd, struct sockaddr_in *client_addr, socklen_t addr_len) {
-    char ack_message[4] = {0};
-    strcpy(ack_message, "ACK");
+    char ack_message[4] = "ACK";
 
     ssize_t sent_len = sendto(sockfd, ack_message, strlen(ack_message), 0,
                               (struct sockaddr *)client_addr, addr_len);
     if (sent_len < 0) {
         perror("[Gateway] Erro ao enviar ACK");
+        escreverlog("[Gateway] Erro ao enviar ACK");
     } else if (sent_len != (ssize_t)strlen(ack_message)) {
         printf("[Gateway] Erro: ACK enviado parcialmente (%ld bytes).\n", sent_len);
+        escreverlog("[Gateway] ACK enviado parcialmente (%ld bytes)", sent_len);
     } else {
         printf("[Gateway] ACK enviado para o dispositivo.\n");
+        escreverlog("[Gateway] ACK enviado com sucesso");
     }
 }
 
 int main() {
+    iniciarlog();
+    printf("[Gateway] Iniciando gateway UDP...\n");
+    escreverlog("[Gateway] Iniciando gateway UDP");
+
     int sockfd;
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof(client_addr);
@@ -173,14 +167,17 @@ int main() {
 
     if (!load_devices("config/Config.json", &devices)) {
         printf("Erro ao carregar os dispositivos do Config.json\n");
+        escreverlog("Erro ao carregar os dispositivos do Config.json");
         return 1;
     }
 
     int device_count = cJSON_GetArraySize(devices);
     printf("[Gateway] Dispositivos encontrados: %d\n", device_count);
+    escreverlog("[Gateway] Dispositivos encontrados: %d", device_count);
 
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("Erro ao criar socket");
+        escreverlog("Erro ao criar socket");
         exit(EXIT_FAILURE);
     }
 
@@ -191,14 +188,15 @@ int main() {
 
     if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("Erro ao fazer bind");
+        escreverlog("Erro ao fazer bind");
         close(sockfd);
         exit(EXIT_FAILURE);
     }
 
     printf("[Gateway] Aguardando pacotes na porta %d...\n", PORT);
+    escreverlog("[Gateway] Aguardando pacotes na porta %d", PORT);
 
     int processed_count = 0;
-
     uint8_t gateway_eui[8] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
 
     while (processed_count < device_count) {
@@ -207,32 +205,35 @@ int main() {
 
         if (recv_len < 0) {
             perror("[Gateway] Erro ao receber dados");
+            escreverlog("[Gateway] Erro ao receber dados");
             continue;
         }
 
-        printf("[Gateway] Pacote recebido (%ld bytes) de %s:%d\n",
-               recv_len,
-               inet_ntoa(client_addr.sin_addr),
-               ntohs(client_addr.sin_port));
+        escreverlog("[Gateway] Pacote recebido de %s:%d com %ld bytes",
+                    inet_ntoa(client_addr.sin_addr),
+                    ntohs(client_addr.sin_port),
+                    recv_len);
 
-        printf("[Gateway] Conteúdo do pacote (hex): ");
+        char hex[3 * BUFFER_SIZE] = {0};
         for (ssize_t i = 0; i < recv_len; ++i) {
-            printf("%02X ", recv_buffer[i]);
+            char temp[4];
+            snprintf(temp, sizeof(temp), "%02X ", recv_buffer[i]);
+            strcat(hex, temp);
         }
-        printf("\n");
+        escreverlog("[Gateway] Conteúdo (hex): %s", hex);
 
         send_ack(sockfd, &client_addr, addr_len);
 
         cJSON *root = cJSON_CreateObject();
         if (!root) {
-            printf("Erro ao criar objeto JSON\n");
+            escreverlog("Erro ao criar objeto JSON");
             continue;
         }
 
         cJSON_AddStringToObject(root, "data", "example_payload");
         char *json_string = cJSON_PrintUnformatted(root);
         if (!json_string) {
-            printf("Erro ao criar string JSON\n");
+            escreverlog("Erro ao criar string JSON");
             cJSON_Delete(root);
             continue;
         }
@@ -240,7 +241,7 @@ int main() {
         memset(send_buffer, 0, BUFFER_SIZE);
         int packet_len = encapsulate_semtech_packet(send_buffer, sizeof(send_buffer), json_string, gateway_eui);
         if (packet_len < 0) {
-            printf("Erro ao encapsular o pacote no formato Semtech UDP Packet Forwarder\n");
+            escreverlog("Erro ao encapsular pacote no formato Semtech");
             free(json_string);
             cJSON_Delete(root);
             continue;
@@ -248,20 +249,24 @@ int main() {
 
         if (sendto(sockfd, send_buffer, packet_len, 0, (struct sockaddr *)&client_addr, addr_len) < 0) {
             perror("Erro ao enviar pacote encapsulado");
+            escreverlog("Erro ao enviar pacote encapsulado");
         } else {
             printf("[Gateway] Pacote encapsulado enviado com sucesso.\n");
+            escreverlog("[Gateway] Pacote encapsulado enviado com sucesso");
         }
 
         free(json_string);
         cJSON_Delete(root);
 
         processed_count++;
-        printf("[Gateway] Pacotes processados: %d/%d\n", processed_count, device_count);
+        escreverlog("[Gateway] Pacotes processados: %d/%d", processed_count, device_count);
     }
 
     printf("[Gateway] Todos os pacotes foram processados. Encerrando...\n");
+    escreverlog("[Gateway] Todos os pacotes foram processados. Encerrando");
 
     cJSON_Delete(devices);
     close(sockfd);
+    fecharlog();
     return 0;
 }
