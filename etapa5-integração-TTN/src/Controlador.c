@@ -152,6 +152,10 @@ void addDevice(cJSON *json) {
     char nwkskey[256], appskey[256];
     int fcnt, fport, payload[2];
 
+    char gateway_id[256], datr[64], codr[64];
+    float freq, lsnr;
+    int chan, rfch, rssi;
+
     printf("Digite o device_id: "); scanf("%s", device_id);
     printf("Digite o application_id: "); scanf("%s", application_id);
     printf("Digite o deveui: "); scanf("%s", deveui);
@@ -162,6 +166,15 @@ void addDevice(cJSON *json) {
     printf("Digite o fport: "); scanf("%d", &fport);
     printf("Digite o primeiro valor da payload: "); scanf("%d", &payload[0]);
     printf("Digite o segundo valor da payload: "); scanf("%d", &payload[1]);
+
+    printf("Digite o gateway_id: "); scanf("%s", gateway_id);
+    printf("Digite a frequência (ex: 868.3): "); scanf("%f", &freq);
+    printf("Digite o canal (chan): "); scanf("%d", &chan);
+    printf("Digite o canal RF (rfch): "); scanf("%d", &rfch);
+    printf("Digite o RSSI: "); scanf("%d", &rssi);
+    printf("Digite o SNR (lsnr): "); scanf("%f", &lsnr);
+    printf("Digite o datr (ex: SF7BW125): "); scanf("%s", datr);
+    printf("Digite o codr (ex: 4/5): "); scanf("%s", codr);
 
     escreverlog("Novo dispositivo adicionado: %s", device_id);
 
@@ -179,8 +192,20 @@ void addDevice(cJSON *json) {
     cJSON_AddItemToArray(payloadArray, cJSON_CreateNumber(payload[0]));
     cJSON_AddItemToArray(payloadArray, cJSON_CreateNumber(payload[1]));
 
+    cJSON *gateway = cJSON_CreateObject();
+    cJSON_AddStringToObject(gateway, "id", gateway_id);
+    cJSON_AddNumberToObject(gateway, "freq", freq);
+    cJSON_AddNumberToObject(gateway, "chan", chan);
+    cJSON_AddNumberToObject(gateway, "rfch", rfch);
+    cJSON_AddNumberToObject(gateway, "rssi", rssi);
+    cJSON_AddNumberToObject(gateway, "lsnr", lsnr);
+    cJSON_AddStringToObject(gateway, "datr", datr);
+    cJSON_AddStringToObject(gateway, "codr", codr);
+
+    cJSON_AddItemToObject(device, "gateway", gateway);
     cJSON_AddItemToArray(devices, device);
 }
+
 
 int JSONMenu(cJSON *json) {
     int choice;
@@ -235,46 +260,59 @@ int JSONMenu(cJSON *json) {
 
 int MenuInicial(cJSON *json) {
     int escolhainicial;
-    printf("\nDeseja manipular o arquivo Json? (1 - Sim / 2 - Não)\n");
-    escreverlog("[Controlador] Opção de escolha impressa");
+    printf("\nMenu Inicial:\n");
+    printf("1. Manipulação do Json\n");
+    printf("2. Executar o código\n>");
+    escreverlog("[Controlador] Opções de escolha impressas");
     scanf("%d", &escolhainicial);
     escreverlog("[Controlador] Escolha lida");
+    escreverlog("[Controlador] Escolha %d", escolhainicial);
 
-    if (escolhainicial == 1) {
+    switch (escolhainicial)
+    {
+    case 1:
         escreverlog("[Controlador] Optou por alterar o Json");
         LimparTela();
         JSONMenu(json);
-    } else {
+        break;
+
+    case 2:
+
         escreverlog("[Controlador] Optou por não alterar o json");
         int escolher;
         LimparTela();
-        printf("\nDeseja executar o programa agora? (1 - Sim / 2 - Não)\n");
+        printf("\nDeseja executar o programa agora? (1 - Sim / 2 - Não, encerrar código. )\n");
         scanf("%d", &escolher);
 
         if (escolher == 1) {
-            LimparTela();
-            printf("[Controlador] Executando o gateway\n");
-            escreverlog("[Controlador] Executando o gateway");
-            executarProcesso("./bin/Gateway.exe", "Gateway");
-            sleep(1);
+        LimparTela();
+        printf("[Controlador] Executando o gateway\n");
+        escreverlog("[Controlador] Executando o gateway");
+        executarProcesso("./bin/Gateway.exe", "Gateway");
+        sleep(1);
 
-            printf("[Controlador] Executando o Main\n");
-            escreverlog("[Controlador] Executando o Main");
-            executarProcesso("./bin/Main.exe", "Main");
+        printf("[Controlador] Executando o Main\n");
+        escreverlog("[Controlador] Executando o Main");
+        executarProcesso("./bin/Main.exe", "Main");
 
-            int status;
-            while (wait(&status) > 0);
+        int status;
+        while (wait(&status) > 0);
 
-            printf("[Controlador] Execução finalizada.\n");
-            escreverlog("[Controlador] Execução finalizada.");
-            return 1;
+        printf("[Controlador] Execução finalizada.\n");
+        escreverlog("[Controlador] Execução finalizada.");
+        return 1;
 
-        } else {
-            LimparTela();
-            printf("[Controlador] Encerrando...\n");
-            escreverlog("[Controlador] Encerrando...");
-            return 1;
+        } 
+        else {
+        LimparTela();
+        printf("[Controlador] Encerrando...\n");
+        escreverlog("[Controlador] Encerrando...");
+        return 1;
         }
+        
+    default:
+        LimparTela();
+        printf("Opção inválida, tente novamente.\n");
     }
 
     return 0;

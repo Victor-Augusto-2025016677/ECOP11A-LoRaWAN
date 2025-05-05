@@ -8,7 +8,17 @@
 			"appskey":	"ED3FD17362220C5B95C867AC42C2CB29",
 			"fcnt":	4,
 			"fport":	10,
-			"payload":	[55, 87]
+			"payload":	[55, 87],
+			"gateway":	{
+				"id":	"gateway-simu1",
+				"freq":	868.3,
+				"chan":	0,
+				"rfch":	0,
+				"rssi":	-42,
+				"lsnr":	8.5,
+				"datr":	"SF7BW125",
+				"codr":	"4/5"
+			}
 		}, {
 			"device_id":	"lorawan-simu2",
 			"application_id":	"lorawan-unifei",
@@ -18,6 +28,16 @@
 			"appskey":	"F125B998CB5E21F5D083B9A2FB8B0F66",
 			"fcnt":	4,
 			"fport":	15,
-			"payload":	[64, 82]
+			"payload":	[64, 82],
+			"gateway":	{
+				"id":	"gateway-simu2",
+				"freq":	868.5,
+				"chan":	1,
+				"rfch":	0,
+				"rssi":	-50,
+				"lsnr":	7.2,
+				"datr":	"SF8BW125",
+				"codr":	"4/5"
+			}
 		}]
 }

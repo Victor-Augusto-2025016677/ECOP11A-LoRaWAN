@@ -171,20 +171,23 @@ int main() {
     int processed_count = 0;
 
     while (processed_count < device_count) {
+        // Recebe pacotes
         recv_len = recvfrom(sockfd, recv_buffer, BUFFER_SIZE, 0,
                             (struct sockaddr *)&client_addr, &addr_len);
-
+    
         if (recv_len < 0) {
             perror("[Gateway] Erro ao receber dados");
             escreverlog("[Gateway] Erro ao receber dados");
             continue;
         }
-
+    
+        // Log do pacote recebido
         escreverlog("[Gateway] Pacote recebido de %s:%d com %ld bytes",
                     inet_ntoa(client_addr.sin_addr),
                     ntohs(client_addr.sin_port),
                     recv_len);
-
+    
+        // Converte para hexadecimal para log
         char hex[3 * BUFFER_SIZE] = {0};
         for (ssize_t i = 0; i < recv_len; ++i) {
             char temp[4];
@@ -192,30 +195,85 @@ int main() {
             strcat(hex, temp);
         }
         escreverlog("[Gateway] Conteúdo (hex): %s", hex);
-
+    
+        // Envia ACK para o cliente
         send_ack(sockfd, &client_addr, addr_len);
-
+    
+        // Extrair os primeiros 4 bytes como devaddr
+        if (recv_len < 4) {
+            escreverlog("Pacote muito curto para conter DevAddr");
+            continue;
+        }
+        char devaddr_hex[9] = {0};
+        snprintf(devaddr_hex, sizeof(devaddr_hex), "%02X%02X%02X%02X", 
+                 recv_buffer[0], recv_buffer[1], recv_buffer[2], recv_buffer[3]);
+    
+        // Log do DevAddr extraído
+        escreverlog("[Gateway] DevAddr extraído (hex): %s", devaddr_hex);
+    
+        // Procurar dispositivo correspondente
+        cJSON *device = NULL;
+        cJSON *item = NULL;
+        cJSON_ArrayForEach(item, devices) {
+            cJSON *devaddr = cJSON_GetObjectItem(item, "devaddr");
+            if (devaddr && strcmp(devaddr->valuestring, devaddr_hex) == 0) {
+                device = item;
+                break;
+            }
+        }
+    
+        if (!device) {
+            escreverlog("Dispositivo com DevAddr %s não encontrado", devaddr_hex);
+            continue;
+        }
+    
+        // Codificar payload em Base64
+        unsigned char base64_output[BASE64_BUFFER_SIZE];
+        size_t base64_len = 0;
+        mbedtls_base64_encode(base64_output, sizeof(base64_output), &base64_len, recv_buffer, recv_len);
+    
+        // Criar objeto rxpk
+        cJSON *rxpk = cJSON_CreateObject();
+        cJSON_AddNumberToObject(rxpk, "tmst", (unsigned)time(NULL)); // timestamp fictício
+        cJSON_AddStringToObject(rxpk, "time", "2025-05-05T18:00:00Z");
+        cJSON_AddNumberToObject(rxpk, "chan", 0);
+        cJSON_AddNumberToObject(rxpk, "rfch", 0);
+        cJSON_AddNumberToObject(rxpk, "freq", 868.3);
+        cJSON_AddNumberToObject(rxpk, "stat", 1);
+        cJSON_AddStringToObject(rxpk, "modu", "LORA");
+        cJSON_AddStringToObject(rxpk, "datr", "SF7BW125");
+        cJSON_AddStringToObject(rxpk, "codr", "4/5");
+        cJSON_AddNumberToObject(rxpk, "rssi", -42);
+        cJSON_AddNumberToObject(rxpk, "lsnr", 5.5);
+        cJSON_AddNumberToObject(rxpk, "size", recv_len);
+        cJSON_AddStringToObject(rxpk, "data", (char *)base64_output);
+    
+        // Criar array rxpk e raiz
+        cJSON *rxpk_array = cJSON_CreateArray();
+        cJSON_AddItemToArray(rxpk_array, rxpk);
         cJSON *root = cJSON_CreateObject();
-        if (!root) {
-            escreverlog("Erro ao criar objeto JSON");
-            continue;
+        cJSON_AddItemToObject(root, "rxpk", rxpk_array);
+    
+        // Salvar em /out/Saida.json
+        FILE *saida = fopen("out/Saida.json", "w");
+        if (!saida) {
+            escreverlog("Erro ao abrir /out/Saida.json para escrita");
+        } else {
+            char *saida_str = cJSON_Print(root);
+            if (saida_str) {
+                fputs(saida_str, saida);
+                escreverlog("Pacote JSON Semtech salvo em /out/Saida.json");
+                free(saida_str);
+            }
+            fclose(saida);
         }
-
-        cJSON_AddStringToObject(root, "data", "example_payload");
-        char *json_string = cJSON_PrintUnformatted(root);
-        if (!json_string) {
-            escreverlog("Erro ao criar string JSON");
-            cJSON_Delete(root);
-            continue;
-        }
-
-        free(json_string);
+    
         cJSON_Delete(root);
-
+    
         processed_count++;
         escreverlog("[Gateway] Pacotes processados: %d/%d", processed_count, device_count);
     }
-
+    
     printf("[Gateway] Todos os pacotes foram processados. Encerrando...\n");
     escreverlog("[Gateway] Todos os pacotes foram processados. Encerrando");
 
