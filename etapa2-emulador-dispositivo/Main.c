@@ -13,6 +13,74 @@
 #include "aes_cmac.h"
 #include "Config.h"
 
+// Início bloco de log
+
+#include <time.h>
+#include <stdarg.h>
+
+FILE *log_file = NULL;
+char nomedolog[64];
+
+void gerar_nome_log(char *buffer, size_t tamanho) {
+    time_t agora = time(NULL);
+    struct tm *tm_info = localtime(&agora);
+    strftime(buffer, tamanho, "logs/log_%Y%m%d_%H%M%S.txt", tm_info);
+}
+
+const char* current_time_str() {
+    static char buffer[32];
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", t);
+    return buffer;
+}
+
+void iniciarlog() {
+    gerar_nome_log(nomedolog, sizeof(nomedolog));
+    log_file = fopen(nomedolog, "a");
+    if (log_file == NULL) {
+        perror("Erro ao abrir o arquivo de log");
+        exit(EXIT_FAILURE);
+    }
+    fprintf(log_file, "========== NOVA EXECUÇÃO (%s) ==========\n\n", current_time_str());
+    fflush(log_file);
+}
+
+void escreverlog(const char *formato, ...) {
+    if (log_file != NULL) {
+        va_list args;
+        va_start(args, formato);
+        fprintf(log_file, "[%s] ", current_time_str());
+        vfprintf(log_file, formato, args);
+        fprintf(log_file, "\n");
+        va_end(args);
+        fflush(log_file);
+    }
+}
+
+void fecharlog() {
+    if (log_file != NULL) {
+        fprintf(log_file, "\n========== FINAL EXECUÇÃO (%s) ==========\n", current_time_str());
+        fclose(log_file);
+        log_file = NULL;
+    }
+}
+
+/*
+Comandos de execução:
+
+    iniciarlog();
+
+    escreverlog("texto aqui"); // as timestamp são adicionadas automaticamente na função
+
+    fecharlog();
+
+    escreverlog("texto aqui: %d operador", variavel);
+
+*/
+
+// Fim bloco de log
+
 int send_to_ttn(const uint8_t *packet, int packet_len);
 int save_config(const char *filename, const Config *configs, int device_count);
 
@@ -120,22 +188,31 @@ int send_to_ttn(const uint8_t *packet, int packet_len) {
 }
 
 int main() {
-	printf("[LoRaWAN] Simulador de dispositivo iniciado\n");
+	iniciarlog();
+	escreverlog("Simulador Iniciado");
+
+//	printf("[LoRaWAN] Simulador de dispositivo iniciado\n");
 
 	Config configs[MAX_DEVICES];
 	int device_count = 0;
 
-	printf("Carregando configurações do arquivo Config.json...\n");
+//	printf("Carregando configurações do arquivo Config.json...\n");
+
+	escreverlog("Carregando Json");
+
 	if (!load_config("Config.json", configs, &device_count)) {
-		printf("Erro ao carregar o arquivo Config.json\n");
+		//printf("Erro ao carregar o arquivo Config.json\n");
+		escreverlog("Erro ao carregar o arquivo Config.json");
 		return 1;
 	}
-	printf("Configurações carregadas com sucesso. Dispositivos encontrados: %d\n", device_count);
+//	printf("Configurações carregadas com sucesso. Dispositivos encontrados: %d\n", device_count);
+	escreverlog("Configurações carregadas com sucesso. Dispositivos encontrados: %d\n", device_count);
 
 	for (int i = 0; i < device_count; i++) {
 		Config *cfg = &configs[i];
 
-		printf("Montando o pacote para o dispositivo %d (DevEUI: %s)...\n", i + 1, cfg->deveui);
+		//printf("Montando o pacote para o dispositivo %d (DevEUI: %s)...\n", i + 1, cfg->deveui);
+		escreverlog("Montando o pacote para o dispositivo %d (DevEUI: %s)...", i + 1, cfg->deveui);
 
 		uint8_t packet[64];
 		int packet_len = lorawan_build_uplink(
@@ -144,29 +221,37 @@ int main() {
 		);
 
 		if (packet_len <= 0) {
-			printf("Erro ao montar pacote para o dispositivo %d\n", i + 1);
+			//printf("Erro ao montar pacote para o dispositivo %d\n", i + 1);
+			escreverlog("Erro ao montar pacote para o dispositivo %d", i + 1);
 			continue;
 		}
 
-		printf("Pacote montado para o dispositivo %d: ", i + 1);
+		//printf("Pacote montado para o dispositivo %d: ", i + 1);
+		escreverlog("Pacote montado para o dispositivo %d: ", i + 1);
 		for (int j = 0; j < packet_len; j++) {
-			printf("%02X ", packet[j]);
+			//printf("%02X ", packet[j]);
+			escreverlog("%02X ", packet[j]);
 		}
-		printf("\n");
+		//printf("\n");
 
-		printf("Enviando pacote para o dispositivo %d...\n", i + 1);
+		//printf("Enviando pacote para o dispositivo %d...\n", i + 1);
+		escreverlog("Enviando pacote para o dispositivo %d...", i + 1);
 		if (send_to_ttn(packet, packet_len) != 0) {
-			printf("Erro ao enviar pacote para o dispositivo %d\n", i + 1);
+			//printf("Erro ao enviar pacote para o dispositivo %d\n", i + 1);
+			escreverlog("Erro ao enviar pacote para o dispositivo %d", i + 1);
 			continue;
 		}
 
-		printf("Pacote enviado com sucesso para o dispositivo %d!\n", i + 1);
+		//printf("Pacote enviado com sucesso para o dispositivo %d!\n", i + 1);
+		escreverlog("Pacote enviado com sucesso para o dispositivo %d!\n", i + 1);
 		cfg->fcnt += 1;
 
 		if (!save_config("Config.json", configs, device_count)) {
-			printf("Erro ao salvar o arquivo Config.json para o dispositivo %d\n", i + 1);
+			//printf("Erro ao salvar o arquivo Config.json para o dispositivo %d\n", i + 1);
+			escreverlog("Erro ao salvar o arquivo Config.json para o dispositivo %d", i + 1);
 		}
 	}
 
+	fecharlog();
 	return 0;
 }

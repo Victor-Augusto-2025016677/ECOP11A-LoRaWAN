@@ -1,12 +1,16 @@
+#include <stdio.h>
+#include <stdlib.h>
+
 // Início bloco de log
 
 #include <time.h>
 #include <stdarg.h>
 
+
 FILE *log_file = NULL;
 char nomedolog[64];
 
-void gerar_nome_log(char *buffer, size_t tamanho) { // criação de nome com base no tempo
+void gerar_nome_log(char *buffer, size_t tamanho) {
     time_t agora = time(NULL);
     struct tm *tm_info = localtime(&agora);
     strftime(buffer, tamanho, "logs/log_%Y%m%d_%H%M%S.txt", tm_info);
