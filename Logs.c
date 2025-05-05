@@ -4,6 +4,7 @@
 // Início bloco de log
 
 #include <time.h>
+#include <errno.h>
 #include <stdarg.h>
 
 
@@ -60,11 +61,14 @@ Comandos de execução:
 
     iniciarlog();
 
-    escreverlog("texto aqui"); // as timestamp são adicionadas automaticamente na função
+    escreverlog("texto aqui");
 
     fecharlog();
 
     escreverlog("texto aqui: %d operador", variavel);
+
+    em erros:
+	escreverlog("texto aqui %s", strerror(errno));
 
 */
 

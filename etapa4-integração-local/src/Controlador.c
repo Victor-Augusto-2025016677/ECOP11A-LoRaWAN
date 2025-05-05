@@ -4,11 +4,9 @@
 #include <cjson/cJSON.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <errno.h>  // Necessário para strerror
+#include <errno.h>
 
 #define JSON_FILE "config/Config.json"
-
-// Início bloco de log
 
 #include <time.h>
 #include <stdarg.h>

@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <mbedtls/base64.h>
 #include <cjson/cJSON.h>
+#include <errno.h>
 
 #define PORT 1700
 #define BUFFER_SIZE 1024
@@ -82,6 +83,7 @@ int load_config(const char *filename, char *device_id, char *application_id) {
 	FILE *file = fopen(filename, "r");
 	if (!file) {
 		perror("Erro ao abrir o arquivo Config.json");
+		escreverlog("Erro ao abrir o arquivo Config.json %s", strerror(errno));
 		return 0;
 	}
 
@@ -92,6 +94,7 @@ int load_config(const char *filename, char *device_id, char *application_id) {
 	char *file_content = (char *)malloc(file_size + 1);
 	if (!file_content) {
 		perror("Erro ao alocar memória para o conteúdo do arquivo");
+		escreverlog("Erro ao alocar memória para o conteúdo do arquivo %s", strerror(errno));
 		fclose(file);
 		return 0;
 	}
@@ -163,6 +166,7 @@ int main() {
 
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		perror("Erro ao criar socket");
+		escreverlog("Erro ao criar socket %s", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
@@ -173,6 +177,7 @@ int main() {
 
 	if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
 		perror("Erro ao fazer bind");
+		escreverlog("Erro ao fazer bind %s", strerror(errno));
 		close(sockfd);
 		exit(EXIT_FAILURE);
 	}
@@ -186,6 +191,7 @@ int main() {
 
 		if (recv_len < 0) {
 			perror("Erro ao receber dados");
+			escreverlog("Erro ao receber dados %s", strerror(errno));
 			continue;
 		}
 
