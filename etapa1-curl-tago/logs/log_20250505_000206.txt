@@ -1,0 +1,9 @@
+========== NOVA EXECUÇÃO (2025-05-05 00:02:06) ==========
+
+[2025-05-05 00:02:06] Iniciando o Main
+[2025-05-05 00:02:06] Iniciando a função send_data
+[2025-05-05 00:02:06] Iniciando a função curl
+[2025-05-05 00:02:06] Curl finalizado com sucesso
+[2025-05-05 00:02:06] Finalizando o programa
+
+========== FINAL EXECUÇÃO (2025-05-05 00:02:06) ==========
