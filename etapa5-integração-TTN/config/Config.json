@@ -11,7 +11,7 @@
 			"payload":	[55, 87],
 			"gateway":	{
 				"id":	"gateway-simu1",
-				"freq":	868.3,
+				"freq":	868.7,
 				"chan":	0,
 				"rfch":	0,
 				"rssi":	-42,

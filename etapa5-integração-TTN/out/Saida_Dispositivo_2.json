@@ -1,0 +1,17 @@
+{
+	"rxpk":	[{
+			"tmst":	2738711737,
+			"time":	"2025-05-06T01:37:13Z",
+			"chan":	1,
+			"rfch":	0,
+			"freq":	868.5,
+			"stat":	1,
+			"modu":	"LORA",
+			"datr":	"SF8BW125",
+			"codr":	"4/5",
+			"rssi":	-50,
+			"lsnr":	7.2,
+			"size":	15,
+			"data":	"QCYM9s8AAAAPI6uWYFxK"
+		}]
+}

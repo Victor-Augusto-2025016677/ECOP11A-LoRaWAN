@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 199309L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -228,55 +229,67 @@ int main() {
             escreverlog("Dispositivo com DevAddr %s não encontrado", devaddr_hex);
             continue;
         }
+            // Codificar payload em Base64
+            unsigned char base64_output[BASE64_BUFFER_SIZE];
+            size_t base64_len = 0;
+            mbedtls_base64_encode(base64_output, sizeof(base64_output), &base64_len, recv_buffer, recv_len);
     
-        // Codificar payload em Base64
-        unsigned char base64_output[BASE64_BUFFER_SIZE];
-        size_t base64_len = 0;
-        mbedtls_base64_encode(base64_output, sizeof(base64_output), &base64_len, recv_buffer, recv_len);
+            // Obter timestamp real em milissegundos
+            struct timespec ts;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            unsigned long long timestamp_ms = (unsigned long long)(ts.tv_sec) * 1000 + (ts.tv_nsec / 1000000);
     
-        // Criar objeto rxpk
-        cJSON *rxpk = cJSON_CreateObject();
-        cJSON_AddNumberToObject(rxpk, "tmst", (unsigned)time(NULL)); // timestamp fictício
-        cJSON_AddStringToObject(rxpk, "time", "2025-05-05T18:00:00Z");
-        cJSON_AddNumberToObject(rxpk, "chan", 0);
-        cJSON_AddNumberToObject(rxpk, "rfch", 0);
-        cJSON_AddNumberToObject(rxpk, "freq", 868.3);
-        cJSON_AddNumberToObject(rxpk, "stat", 1);
-        cJSON_AddStringToObject(rxpk, "modu", "LORA");
-        cJSON_AddStringToObject(rxpk, "datr", "SF7BW125");
-        cJSON_AddStringToObject(rxpk, "codr", "4/5");
-        cJSON_AddNumberToObject(rxpk, "rssi", -42);
-        cJSON_AddNumberToObject(rxpk, "lsnr", 5.5);
-        cJSON_AddNumberToObject(rxpk, "size", recv_len);
-        cJSON_AddStringToObject(rxpk, "data", (char *)base64_output);
+            // Formatar time ISO 8601
+            char time_iso8601[40];
+            struct tm *tm_info = gmtime(&ts.tv_sec);
+            strftime(time_iso8601, sizeof(time_iso8601), "%Y-%m-%dT%H:%M:%SZ", tm_info);
     
-        // Criar array rxpk e raiz
-        cJSON *rxpk_array = cJSON_CreateArray();
-        cJSON_AddItemToArray(rxpk_array, rxpk);
-        cJSON *root = cJSON_CreateObject();
-        cJSON_AddItemToObject(root, "rxpk", rxpk_array);
+            // Acessar informações do gateway
+            cJSON *gateway = cJSON_GetObjectItem(device, "gateway");
     
-        // Salvar em um arquivo específico para cada dispositivo
-        char output_filename[128];
-        snprintf(output_filename, sizeof(output_filename), "out/Saida_Dispositivo_%d.json", processed_count + 1);
-        
-        FILE *saida = fopen(output_filename, "w");
-        if (!saida) {
-            escreverlog("Erro ao abrir %s para escrita", output_filename);
-        } else {
-            char *saida_str = cJSON_Print(root);
-            if (saida_str) {
-                fputs(saida_str, saida);
-                escreverlog("Pacote JSON Semtech salvo em %s", output_filename);
-                free(saida_str);
+            // Criar objeto rxpk
+            cJSON *rxpk = cJSON_CreateObject();
+            cJSON_AddNumberToObject(rxpk, "tmst", (unsigned int)timestamp_ms);
+            cJSON_AddStringToObject(rxpk, "time", time_iso8601);
+            cJSON_AddNumberToObject(rxpk, "chan", cJSON_GetObjectItem(gateway, "chan")->valueint);
+            cJSON_AddNumberToObject(rxpk, "rfch", cJSON_GetObjectItem(gateway, "rfch")->valueint);
+            cJSON_AddNumberToObject(rxpk, "freq", cJSON_GetObjectItem(gateway, "freq")->valuedouble);
+            cJSON_AddNumberToObject(rxpk, "stat", 1);
+            cJSON_AddStringToObject(rxpk, "modu", "LORA");
+            cJSON_AddStringToObject(rxpk, "datr", cJSON_GetObjectItem(gateway, "datr")->valuestring);
+            cJSON_AddStringToObject(rxpk, "codr", cJSON_GetObjectItem(gateway, "codr")->valuestring);
+            cJSON_AddNumberToObject(rxpk, "rssi", cJSON_GetObjectItem(gateway, "rssi")->valueint);
+            cJSON_AddNumberToObject(rxpk, "lsnr", cJSON_GetObjectItem(gateway, "lsnr")->valuedouble);
+            cJSON_AddNumberToObject(rxpk, "size", recv_len);
+            cJSON_AddStringToObject(rxpk, "data", (char *)base64_output);
+    
+            // Criar array rxpk e raiz
+            cJSON *rxpk_array = cJSON_CreateArray();
+            cJSON_AddItemToArray(rxpk_array, rxpk);
+            cJSON *root = cJSON_CreateObject();
+            cJSON_AddItemToObject(root, "rxpk", rxpk_array);
+    
+            // Salvar em um arquivo específico para cada dispositivo
+            char output_filename[128];
+            snprintf(output_filename, sizeof(output_filename), "out/Saida_Dispositivo_%d.json", processed_count + 1);
+            
+            FILE *saida = fopen(output_filename, "w");
+            if (!saida) {
+                escreverlog("Erro ao abrir %s para escrita", output_filename);
+            } else {
+                char *saida_str = cJSON_Print(root);
+                if (saida_str) {
+                    fputs(saida_str, saida);
+                    escreverlog("Pacote JSON Semtech salvo em %s", output_filename);
+                    free(saida_str);
+                }
+                fclose(saida);
             }
-            fclose(saida);
-        }
     
-        cJSON_Delete(root);
+            cJSON_Delete(root);
     
-        processed_count++;
-        escreverlog("[Gateway] Pacotes processados: %d/%d", processed_count, device_count);
+            processed_count++;
+            escreverlog("[Gateway] Pacotes processados: %d/%d", processed_count, device_count);
     }
     
     printf("[Gateway] Todos os pacotes foram processados. Encerrando...\n");
