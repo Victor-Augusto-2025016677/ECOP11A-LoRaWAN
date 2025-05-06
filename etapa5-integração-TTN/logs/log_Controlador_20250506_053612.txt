@@ -1,0 +1,4 @@
+========== NOVA EXECUÇÃO (2025-05-06 05:36:12) ==========
+
+[2025-05-06 05:36:12] [Controlador] Código iniciado
+[2025-05-06 05:36:12] Erro ao parsear o JSON.
