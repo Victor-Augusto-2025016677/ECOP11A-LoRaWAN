@@ -8,6 +8,7 @@
 #include <cjson/cJSON.h>
 #include <time.h>
 #include <stdarg.h>
+#include <errno.h>
 
 #define PORT 1700
 #define BUFFER_SIZE 1024
@@ -15,7 +16,6 @@
 #define PROTOCOL_VERSION 0x02
 #define PUSH_DATA 0x00
 
-// Início bloco de log
 FILE *log_file = NULL;
 char nomedolog[64];
 
@@ -63,13 +63,12 @@ void fecharlog() {
         log_file = NULL;
     }
 }
-// Fim bloco de log
 
 int load_devices(const char *filename, cJSON **devices) {
     FILE *file = fopen(filename, "r");
     if (!file) {
         perror("Erro ao abrir o arquivo Config.json");
-        escreverlog("Erro ao abrir o arquivo Config.json");
+        escreverlog("Erro ao abrir o arquivo Config.json: %s", strerror(errno));
         return 0;
     }
 
@@ -80,7 +79,7 @@ int load_devices(const char *filename, cJSON **devices) {
     char *file_content = (char *)malloc(file_size + 1);
     if (!file_content) {
         perror("Erro ao alocar memória");
-        escreverlog("Erro ao alocar memória para conteúdo do arquivo");
+        escreverlog("Erro ao alocar memória: %s", strerror(errno));
         fclose(file);
         return 0;
     }
@@ -93,14 +92,12 @@ int load_devices(const char *filename, cJSON **devices) {
     free(file_content);
 
     if (!json) {
-        printf("Erro ao analisar o JSON: %s\n", cJSON_GetErrorPtr());
         escreverlog("Erro ao analisar o JSON: %s", cJSON_GetErrorPtr());
         return 0;
     }
 
     *devices = cJSON_GetObjectItemCaseSensitive(json, "devices");
     if (!cJSON_IsArray(*devices)) {
-        printf("Erro: 'devices' não é um array no Config.json\n");
         escreverlog("Erro: 'devices' não é um array no Config.json");
         cJSON_Delete(json);
         return 0;
@@ -111,17 +108,17 @@ int load_devices(const char *filename, cJSON **devices) {
 
 void send_ack(int sockfd, struct sockaddr_in *client_addr, socklen_t addr_len) {
     char ack_message[4] = "ACK";
-
     ssize_t sent_len = sendto(sockfd, ack_message, strlen(ack_message), 0,
                               (struct sockaddr *)client_addr, addr_len);
 
     if (sent_len < 0) {
         perror("[Gateway] Erro ao enviar ACK");
+        escreverlog("[Gateway] Erro ao enviar ACK: %s", strerror(errno));
     } else if (sent_len != (ssize_t)strlen(ack_message)) {
-        printf("[Gateway] Erro: ACK enviado parcialmente (%ld bytes).\n", sent_len);
+        escreverlog("[Gateway] Erro: ACK enviado parcialmente (%ld bytes)", sent_len);
     } else {
-        printf("[Gateway] ACK enviado com sucesso para %s:%d.\n",
-               inet_ntoa(client_addr->sin_addr), ntohs(client_addr->sin_port));
+        escreverlog("[Gateway] ACK enviado com sucesso para %s:%d",
+                    inet_ntoa(client_addr->sin_addr), ntohs(client_addr->sin_port));
     }
 }
 
@@ -135,22 +132,19 @@ int main() {
     socklen_t addr_len = sizeof(client_addr);
     unsigned char recv_buffer[BUFFER_SIZE];
     ssize_t recv_len;
-
     cJSON *devices = NULL;
 
     if (!load_devices("config/Config.json", &devices)) {
-        printf("Erro ao carregar os dispositivos do Config.json\n");
-        escreverlog("Erro ao carregar os dispositivos do Config.json");
+        escreverlog("Falha ao carregar dispositivos. Encerrando...");
         return 1;
     }
 
     int device_count = cJSON_GetArraySize(devices);
-    printf("[Gateway] Dispositivos encontrados: %d\n", device_count);
     escreverlog("[Gateway] Dispositivos encontrados: %d", device_count);
 
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("Erro ao criar socket");
-        escreverlog("Erro ao criar socket");
+        escreverlog("Erro ao criar socket: %s", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
@@ -161,34 +155,29 @@ int main() {
 
     if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("Erro ao fazer bind");
-        escreverlog("Erro ao fazer bind");
+        escreverlog("Erro ao fazer bind: %s", strerror(errno));
         close(sockfd);
         exit(EXIT_FAILURE);
     }
 
-    printf("[Gateway] Aguardando pacotes na porta %d...\n", PORT);
     escreverlog("[Gateway] Aguardando pacotes na porta %d", PORT);
-
     int processed_count = 0;
 
     while (processed_count < device_count) {
-        // Recebe pacotes
         recv_len = recvfrom(sockfd, recv_buffer, BUFFER_SIZE, 0,
                             (struct sockaddr *)&client_addr, &addr_len);
-    
+
         if (recv_len < 0) {
             perror("[Gateway] Erro ao receber dados");
-            escreverlog("[Gateway] Erro ao receber dados");
+            escreverlog("[Gateway] Erro ao receber dados: %s", strerror(errno));
             continue;
         }
-    
-        // Log do pacote recebido
+
         escreverlog("[Gateway] Pacote recebido de %s:%d com %ld bytes",
                     inet_ntoa(client_addr.sin_addr),
                     ntohs(client_addr.sin_port),
                     recv_len);
-    
-        // Converte para hexadecimal para log
+
         char hex[3 * BUFFER_SIZE] = {0};
         for (ssize_t i = 0; i < recv_len; ++i) {
             char temp[4];
@@ -196,25 +185,20 @@ int main() {
             strcat(hex, temp);
         }
         escreverlog("[Gateway] Conteúdo (hex): %s", hex);
-    
-        // Envia ACK para o cliente
+
         send_ack(sockfd, &client_addr, addr_len);
-    
-        // Extrair os primeiros 4 bytes como devaddr
+
         if (recv_len < 4) {
             escreverlog("Pacote muito curto para conter DevAddr");
             continue;
         }
-        
-        // Corrigido: Extrai DevAddr corretamente do buffer
+
         char devaddr_hex[9] = {0};
         snprintf(devaddr_hex, sizeof(devaddr_hex), "%02X%02X%02X%02X", 
-        recv_buffer[1], recv_buffer[2], recv_buffer[3], recv_buffer[4]);
+                 recv_buffer[1], recv_buffer[2], recv_buffer[3], recv_buffer[4]);
 
-        // Log do DevAddr extraído
         escreverlog("[Gateway] DevAddr extraído (hex): %s", devaddr_hex);
-    
-        // Procurar dispositivo correspondente
+
         cJSON *device = NULL;
         cJSON *item = NULL;
         cJSON_ArrayForEach(item, devices) {
@@ -224,77 +208,69 @@ int main() {
                 break;
             }
         }
-    
+
         if (!device) {
             escreverlog("Dispositivo com DevAddr %s não encontrado", devaddr_hex);
             continue;
         }
-            // Codificar payload em Base64
-            unsigned char base64_output[BASE64_BUFFER_SIZE];
-            size_t base64_len = 0;
-            mbedtls_base64_encode(base64_output, sizeof(base64_output), &base64_len, recv_buffer, recv_len);
-    
-            // Obter timestamp real em milissegundos
-            struct timespec ts;
-            clock_gettime(CLOCK_REALTIME, &ts);
-            unsigned long long timestamp_ms = (unsigned long long)(ts.tv_sec) * 1000 + (ts.tv_nsec / 1000000);
-    
-            // Formatar time ISO 8601
-            char time_iso8601[40];
-            struct tm *tm_info = gmtime(&ts.tv_sec);
-            strftime(time_iso8601, sizeof(time_iso8601), "%Y-%m-%dT%H:%M:%SZ", tm_info);
-    
-            // Acessar informações do gateway
-            cJSON *gateway = cJSON_GetObjectItem(device, "gateway");
-    
-            // Criar objeto rxpk
-            cJSON *rxpk = cJSON_CreateObject();
-            cJSON_AddNumberToObject(rxpk, "tmst", (unsigned int)timestamp_ms);
-            cJSON_AddStringToObject(rxpk, "time", time_iso8601);
-            cJSON_AddNumberToObject(rxpk, "chan", cJSON_GetObjectItem(gateway, "chan")->valueint);
-            cJSON_AddNumberToObject(rxpk, "rfch", cJSON_GetObjectItem(gateway, "rfch")->valueint);
-            cJSON_AddNumberToObject(rxpk, "freq", cJSON_GetObjectItem(gateway, "freq")->valuedouble);
-            cJSON_AddNumberToObject(rxpk, "stat", 1);
-            cJSON_AddStringToObject(rxpk, "modu", "LORA");
-            cJSON_AddStringToObject(rxpk, "datr", cJSON_GetObjectItem(gateway, "datr")->valuestring);
-            cJSON_AddStringToObject(rxpk, "codr", cJSON_GetObjectItem(gateway, "codr")->valuestring);
-            cJSON_AddNumberToObject(rxpk, "rssi", cJSON_GetObjectItem(gateway, "rssi")->valueint);
-            cJSON_AddNumberToObject(rxpk, "lsnr", cJSON_GetObjectItem(gateway, "lsnr")->valuedouble);
-            cJSON_AddNumberToObject(rxpk, "size", recv_len);
-            cJSON_AddStringToObject(rxpk, "data", (char *)base64_output);
-    
-            // Criar array rxpk e raiz
-            cJSON *rxpk_array = cJSON_CreateArray();
-            cJSON_AddItemToArray(rxpk_array, rxpk);
-            cJSON *root = cJSON_CreateObject();
-            cJSON_AddItemToObject(root, "rxpk", rxpk_array);
-    
-            // Salvar em um arquivo específico para cada dispositivo
-            char output_filename[128];
-            snprintf(output_filename, sizeof(output_filename), "out/Saida_Dispositivo_%d.json", processed_count + 1);
-            
-            FILE *saida = fopen(output_filename, "w");
-            if (!saida) {
-                escreverlog("Erro ao abrir %s para escrita", output_filename);
-            } else {
-                char *saida_str = cJSON_Print(root);
-                if (saida_str) {
-                    fputs(saida_str, saida);
-                    escreverlog("Pacote JSON Semtech salvo em %s", output_filename);
-                    free(saida_str);
-                }
-                fclose(saida);
+
+        unsigned char base64_output[BASE64_BUFFER_SIZE];
+        size_t base64_len = 0;
+        mbedtls_base64_encode(base64_output, sizeof(base64_output), &base64_len, recv_buffer, recv_len);
+
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        unsigned long long timestamp_ms = (unsigned long long)(ts.tv_sec) * 1000 + (ts.tv_nsec / 1000000);
+
+        char time_iso8601[40];
+        struct tm *tm_info = gmtime(&ts.tv_sec);
+        strftime(time_iso8601, sizeof(time_iso8601), "%Y-%m-%dT%H:%M:%SZ", tm_info);
+
+        cJSON *gateway = cJSON_GetObjectItem(device, "gateway");
+
+        cJSON *rxpk = cJSON_CreateObject();
+        cJSON_AddNumberToObject(rxpk, "tmst", (unsigned int)timestamp_ms);
+        cJSON_AddStringToObject(rxpk, "time", time_iso8601);
+        cJSON_AddNumberToObject(rxpk, "chan", cJSON_GetObjectItem(gateway, "chan")->valueint);
+        cJSON_AddNumberToObject(rxpk, "rfch", cJSON_GetObjectItem(gateway, "rfch")->valueint);
+        cJSON_AddNumberToObject(rxpk, "freq", cJSON_GetObjectItem(gateway, "freq")->valuedouble);
+        cJSON_AddNumberToObject(rxpk, "stat", 1);
+        cJSON_AddStringToObject(rxpk, "modu", "LORA");
+        cJSON_AddStringToObject(rxpk, "datr", cJSON_GetObjectItem(gateway, "datr")->valuestring);
+        cJSON_AddStringToObject(rxpk, "codr", cJSON_GetObjectItem(gateway, "codr")->valuestring);
+        cJSON_AddNumberToObject(rxpk, "rssi", cJSON_GetObjectItem(gateway, "rssi")->valueint);
+        cJSON_AddNumberToObject(rxpk, "lsnr", cJSON_GetObjectItem(gateway, "lsnr")->valuedouble);
+        cJSON_AddNumberToObject(rxpk, "size", recv_len);
+        cJSON_AddStringToObject(rxpk, "data", (char *)base64_output);
+
+        cJSON *rxpk_array = cJSON_CreateArray();
+        cJSON_AddItemToArray(rxpk_array, rxpk);
+        cJSON *root = cJSON_CreateObject();
+        cJSON_AddItemToObject(root, "rxpk", rxpk_array);
+
+        char output_filename[128];
+        snprintf(output_filename, sizeof(output_filename), "out/Saida_Dispositivo_%d.json", processed_count + 1);
+
+        FILE *saida = fopen(output_filename, "w");
+        if (!saida) {
+            escreverlog("Erro ao abrir %s para escrita: %s", output_filename, strerror(errno));
+        } else {
+            char *saida_str = cJSON_Print(root);
+            if (saida_str) {
+                fputs(saida_str, saida);
+                escreverlog("[Gateway] Pacote JSON Semtech salvo em %s", output_filename);
+                free(saida_str);
             }
-    
-            cJSON_Delete(root);
-    
-            processed_count++;
-            escreverlog("[Gateway] Pacotes processados: %d/%d", processed_count, device_count);
+            fclose(saida);
+        }
+
+        cJSON_Delete(root);
+        processed_count++;
+        escreverlog("[Gateway] Pacotes processados: %d/%d", processed_count, device_count);
     }
-    
+
     printf("[Gateway] Todos os pacotes foram processados. Encerrando...\n");
     escreverlog("[Gateway] Todos os pacotes foram processados. Encerrando");
-
     cJSON_Delete(devices);
     close(sockfd);
     fecharlog();
