@@ -1,6 +1,6 @@
 {
 	"devices":	[{
-			"device_id":	"lorawan-simu1",
+			"device_id":	"lorawan-simu-1",
 			"application_id":	"lorawan-unifei",
 			"deveui":	"70B3D57ED00707B3",
 			"devaddr":	"260C65E9",
@@ -10,9 +10,9 @@
 			"fport":	10,
 			"payload":	[55, 87],
 			"gateway":	{
-				"id":	"gateway-simu1",
+				"id":	"gateway-lorawan-unifei-1209",
 				"freq":	903.9,
-				"chan":	0,
+				"chan":	1,
 				"rfch":	0,
 				"rssi":	-42,
 				"lsnr":	8.5,
@@ -20,7 +20,7 @@
 				"codr":	"4/5"
 			}
 		}, {
-			"device_id":	"lorawan-simu2",
+			"device_id":	"my-lorawn-simu-2",
 			"application_id":	"lorawan-unifei",
 			"deveui":	"70B3D57ED00707B4",
 			"devaddr":	"260C392E",
@@ -30,7 +30,7 @@
 			"fport":	15,
 			"payload":	[64, 82],
 			"gateway":	{
-				"id":	"gateway-simu2",
+				"id":	"gateway-lorawan-unifei-1209",
 				"freq":	903.9,
 				"chan":	1,
 				"rfch":	0,
