@@ -1,0 +1,14 @@
+========== NOVA EXECUÇÃO (2025-05-07 03:54:15) ==========
+
+[2025-05-07 03:54:15] [Gateway] Iniciando gateway UDP
+[2025-05-07 03:54:15] [Gateway] Dispositivos encontrados: 2
+[2025-05-07 03:54:15] [Gateway] Aguardando pacotes na porta 1700
+[2025-05-07 03:54:16] [Gateway] Pacote recebido de 127.0.0.1:39182 com 15 bytes
+[2025-05-07 03:54:16] [Gateway] Conteúdo (hex): 40 BA EC 0C 26 00 04 00 0A A1 E2 20 04 2B 3F 
+[2025-05-07 03:54:16] [Gateway] Pacotes processados: 1/2
+[2025-05-07 03:54:16] [Gateway] Pacote recebido de 127.0.0.1:39182 com 15 bytes
+[2025-05-07 03:54:16] [Gateway] Conteúdo (hex): 40 CF F6 0C 26 00 04 00 0F 0B 05 B5 B7 76 92 
+[2025-05-07 03:54:16] [Gateway] Pacotes processados: 2/2
+[2025-05-07 03:54:16] [Gateway] Todos os pacotes foram processados. Encerrando
+
+========== FINAL EXECUÇÃO (2025-05-07 03:54:16) ==========

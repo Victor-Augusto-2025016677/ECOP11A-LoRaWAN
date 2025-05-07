@@ -15,8 +15,8 @@ int lorawan_build_uplink(
 ) {
     int index = 0;
 
-    // 1. Cabeçalho de Controle
-    out_buffer[index++] = 0x40;  // Indicador de uplink
+    // 1. Cabeçalho de Controle (Unicast)
+    out_buffer[index++] = 0x40;  // Indicador de uplink (Unicast)
 
     // Montando o devAddr corretamente (Big Endian)
     out_buffer[index++] = (uint8_t)((devAddr >> 24) & 0xFF);  // MSB
@@ -66,6 +66,7 @@ int lorawan_build_uplink(
     uint8_t b0[16];
     memset(b0, 0, 16);
 
+    // Configura o b0 com os valores necessários para o cálculo do MIC
     b0[0] = 0x49;  // Identificador do MIC
     b0[5] = 0x00;  // Resposta para o indicador
     b0[6] = (uint8_t)(devAddr & 0xFF);  // Endereço do dispositivo (LSB)
@@ -74,12 +75,12 @@ int lorawan_build_uplink(
     b0[9] = (uint8_t)((devAddr >> 24) & 0xFF);  // Endereço do dispositivo (MSB)
     b0[10] = (uint8_t)(fcnt & 0xFF);  // Contador de quadros (LSB)
     b0[11] = (uint8_t)((fcnt >> 8) & 0xFF);  // Contador de quadros (MSB)
-    b0[15] = (uint8_t)(index);  // Tamanho total do pacote
+    b0[15] = (uint8_t)(index);  // Tamanho total do pacote (incluindo MIC)
 
     // Preparando a entrada para o CMAC
     uint8_t mic_input[256];
     memcpy(mic_input, b0, 16);
-    memcpy(mic_input + 16, out_buffer, index);
+    memcpy(mic_input + 16, out_buffer, index);  // Inclui o conteúdo do pacote (sem MIC)
 
     // Calcular o MIC usando a função aes128_cmac
     aes128_cmac(nwkSKey, mic_input, index + 16, mic);

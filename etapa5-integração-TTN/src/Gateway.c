@@ -22,7 +22,7 @@ char nomedolog[64];
 void gerar_nome_log(char *buffer, size_t tamanho) {
     time_t agora = time(NULL);
     struct tm *tm_info = localtime(&agora);
-    strftime(buffer, tamanho, "logs/log_%Y%m%d_%H%M%S.txt", tm_info);
+    strftime(buffer, tamanho, "logs/log_Gateway_%Y%m%d_%H%M%S.txt", tm_info);
 }
 
 const char* current_time_str() {

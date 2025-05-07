@@ -1,0 +1,27 @@
+========== NOVA EXECUÇÃO (2025-05-07 04:30:52) ==========
+
+[2025-05-07 04:30:52] [Controlador] Código iniciado
+[2025-05-07 04:30:52] [Controlador] Menu Inicial aberto
+[2025-05-07 04:30:52] [Controlador] Opções de escolha impressas
+[2025-05-07 04:30:54] [Controlador] Escolha lida
+[2025-05-07 04:30:54] [Controlador] Escolha 1
+[2025-05-07 04:30:54] [Controlador] Optou por alterar o Json
+[2025-05-07 04:30:54] [Controlador] MENU JSON Aberto
+[2025-05-07 04:30:55] [Controlador] Optou por zerar o fcnt do json
+[2025-05-07 04:30:55] [Controlador] Contagem zerada para todos os dispositivos.
+[2025-05-07 04:30:55] [Controlador] MENU JSON Aberto
+[2025-05-07 04:30:56] [Controlador] Optou por voltar ao menu inicial
+[2025-05-07 04:30:56] [Controlador] Menu Inicial aberto
+[2025-05-07 04:30:56] [Controlador] Opções de escolha impressas
+[2025-05-07 04:30:58] [Controlador] Escolha lida
+[2025-05-07 04:30:58] [Controlador] Escolha 2
+[2025-05-07 04:30:58] [Controlador] Optou por não alterar o json
+[2025-05-07 04:30:59] [Controlador] Executando o gateway
+[2025-05-07 04:30:59] [Controlador] [Gateway] Executando com PID 19653
+[2025-05-07 04:30:59] [Controlador] [Gateway] Iniciando...
+[2025-05-07 04:31:00] [Controlador] Executando o Main
+[2025-05-07 04:31:00] [Controlador] [Main] Executando com PID 19668
+[2025-05-07 04:31:00] [Controlador] [Main] Iniciando...
+[2025-05-07 04:31:00] [Controlador] Execução finalizada.
+
+========== FINAL EXECUÇÃO (2025-05-07 04:31:00) ==========

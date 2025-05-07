@@ -13,6 +13,7 @@ LIBS = -lmbedtls -lmbedcrypto -lmbedx509 -lcjson -lcurl
 SRC_DIR = src
 BIN_DIR = bin
 log_DIR = logs
+out_DIR = out
 
 GATEWAY_SRC = $(SRC_DIR)/Gateway.c
 CONTROLADOR_SRC = $(SRC_DIR)/Controlador.c
@@ -23,16 +24,19 @@ all: $(TARGETS)
 bin/Gateway.exe: $(GATEWAY_SRC)
 	mkdir -p $(log_DIR)
 	mkdir -p $(BIN_DIR)
+	mkdir -p $(out_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS) $(LIBS)
 
 bin/Main.exe: $(MAIN_SRC)
 	mkdir -p $(log_DIR)
 	mkdir -p $(BIN_DIR)
+	mkdir -p $(out_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS) $(LIBS)
 
 bin/Controlador.exe: $(CONTROLADOR_SRC)
 	mkdir -p $(log_DIR)
 	mkdir -p $(BIN_DIR)
+	mkdir -p $(out_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS) $(LIBS)
 
 clean:
@@ -40,3 +44,6 @@ clean:
 
 clean2:
 	rm -rf $(log_DIR)
+
+clean3:
+	rm -rf $(out_DIR)
