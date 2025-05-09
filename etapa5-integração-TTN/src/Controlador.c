@@ -295,6 +295,8 @@ int MenuInicial(cJSON *json) {
         escreverlog("[Controlador] Executando o Main");
         executarProcesso("./bin/Main.exe", "Main");
 
+        sleep(1);
+        executarProcesso("./bin/Envio.exe", "Envio");
         int status;
         while (wait(&status) > 0);
 

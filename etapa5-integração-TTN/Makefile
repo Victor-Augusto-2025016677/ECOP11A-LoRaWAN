@@ -1,4 +1,4 @@
-TARGETS = bin/Gateway.exe bin/Main.exe bin/Controlador.exe
+TARGETS = bin/Gateway.exe bin/Main.exe bin/Controlador.exe bin/Envio.exe
 
 CC = /usr/bin/gcc
 
@@ -16,6 +16,7 @@ log_DIR = logs
 out_DIR = out
 
 GATEWAY_SRC = $(SRC_DIR)/Gateway.c
+ENVIO_SRC = $(SRC_DIR)/Envio.c
 CONTROLADOR_SRC = $(SRC_DIR)/Controlador.c
 MAIN_SRC = $(SRC_DIR)/Main.c $(SRC_DIR)/lorawan.c $(SRC_DIR)/aes_cmac.c $(SRC_DIR)/Config.c
 
@@ -28,6 +29,12 @@ bin/Gateway.exe: $(GATEWAY_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS) $(LIBS)
 
 bin/Main.exe: $(MAIN_SRC)
+	mkdir -p $(log_DIR)
+	mkdir -p $(BIN_DIR)
+	mkdir -p $(out_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS) $(LIBS)
+
+bin/Envio.exe: $(ENVIO_SRC)
 	mkdir -p $(log_DIR)
 	mkdir -p $(BIN_DIR)
 	mkdir -p $(out_DIR)
