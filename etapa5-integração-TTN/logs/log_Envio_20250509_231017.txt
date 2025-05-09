@@ -1,0 +1,31 @@
+========== NOVA EXECUÇÃO (2025-05-09 23:10:17) ==========
+
+[2025-05-09 23:10:17] [Main] Simulador de dispositivo iniciado
+[2025-05-09 23:10:17] [Main] Carregando configurações do arquivo Config.json...
+[2025-05-09 23:10:17] [Main] Configurações carregadas com sucesso. Dispositivos encontrados: 2
+[2025-05-09 23:10:17] [Main] Socket UDP criado com sucesso
+[2025-05-09 23:10:17] [Main] Montando o pacote para o dispositivo 1 (DevEUI: 70B3D57ED00707B3)...
+[2025-05-09 23:10:17] [Main] Pacote montado para o dispositivo 1:
+
+[2025-05-09 23:10:17] [Main] 40 26 0C 65 E9 00 09 00 0A 7C 09 2F AF FD 6D 
+
+[2025-05-09 23:10:17] [Main] Enviando pacote para o dispositivo 1...
+[2025-05-09 23:10:17] [Main] Pacote enviado para o Gateway
+[2025-05-09 23:10:17] [Main] Pacote enviado com sucesso para o dispositivo 1! Aguardando ACK...
+[2025-05-09 23:10:17] [Main] Resposta recebida do Gateway: ACK
+[2025-05-09 23:10:17] [Main] ACK recebido do Gateway
+[2025-05-09 23:10:17] [Main] ACK recebido do gateway para o dispositivo 1
+[2025-05-09 23:10:17] [Main] Montando o pacote para o dispositivo 2 (DevEUI: 70B3D57ED00707B4)...
+[2025-05-09 23:10:17] [Main] Pacote montado para o dispositivo 2:
+
+[2025-05-09 23:10:17] [Main] 40 26 0C 39 2E 00 09 00 0F 17 1C F6 FA 49 A0 
+
+[2025-05-09 23:10:17] [Main] Enviando pacote para o dispositivo 2...
+[2025-05-09 23:10:17] [Main] Pacote enviado para o Gateway
+[2025-05-09 23:10:17] [Main] Pacote enviado com sucesso para o dispositivo 2! Aguardando ACK...
+[2025-05-09 23:10:17] [Main] Resposta recebida do Gateway: ACK
+[2025-05-09 23:10:17] [Main] ACK recebido do Gateway
+[2025-05-09 23:10:17] [Main] ACK recebido do gateway para o dispositivo 2
+[2025-05-09 23:10:17] [Main] Socket fechado
+
+========== FINAL EXECUÇÃO (2025-05-09 23:10:17) ==========

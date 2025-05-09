@@ -1,10 +1,3 @@
-/*
- * Simple TTN forwarder - ANSI C
- * Lê arquivos JSON contendo pacotes rxpk e envia via Semtech UDP (PUSH_DATA)
- * Inicia PULL_DATA loop para downlink (sem tratar resposta ainda)
- * Dependências: cJSON, pthread
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,15 +7,22 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <time.h>
-#include <cjson/cJSON.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <regex.h>
 #include <netdb.h>
+#include <sys/select.h>
+#include <cjson/cJSON.h>
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+#include <limits.h>
 
 #define MAX_DEVICES 10
 #define GATEWAY_EUI_LEN 8
 
 uint8_t gateway_eui[GATEWAY_EUI_LEN] = {0x75, 0x6E, 0x69, 0x66, 0x65, 0x69, 0x12, 0x09};
-
-char server_address[256] = "router.us.thethings.network";
+char server_address[256] = "nam1.cloud.thethings.network";
 int server_port = 1700;
 int sockfd;
 struct sockaddr_in server_addr;
@@ -31,101 +31,155 @@ uint16_t token() {
     return (uint16_t)(rand() & 0xFFFF);
 }
 
-void build_header(uint8_t *buf, uint16_t token, uint8_t identifier) {
-    buf[0] = 0x02;                      // protocol version
-    buf[1] = (token >> 8) & 0xFF;       // random token
-    buf[2] = token & 0xFF;
-    buf[3] = identifier;                // PUSH_DATA = 0x00, PULL_DATA = 0x02
-    memcpy(buf + 4, gateway_eui, 8);    // Gateway EUI
+void build_header(uint8_t *buf, uint16_t tk, uint8_t identifier) {
+    buf[0] = 0x02;
+    buf[1] = (tk >> 8) & 0xFF;
+    buf[2] = tk & 0xFF;
+    buf[3] = identifier;
+    memcpy(buf + 4, gateway_eui, GATEWAY_EUI_LEN);
 }
 
-void *pull_data_loop(void *arg) {
-    (void)arg;  // evitar warning de parâmetro não usado
-    uint8_t buf[12];
-    while (1) {
-        uint16_t tk = token();
-        build_header(buf, tk, 0x02); // PULL_DATA
-        sendto(sockfd, buf, sizeof(buf), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
-        sleep(25);
+void wait_for_ack(uint16_t expected_token) {
+    struct timeval timeout = {1, 0};
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(sockfd, &fds);
+
+    int ret = select(sockfd + 1, &fds, NULL, NULL, &timeout);
+    if (ret > 0) {
+        uint8_t buffer[1024];
+        socklen_t addr_len = sizeof(server_addr);
+        ssize_t len = recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *)&server_addr, &addr_len);
+
+        if (len >= 4 && buffer[3] == 0x01) {
+            uint16_t received_token = (buffer[1] << 8) | buffer[2];
+            if (received_token == expected_token) {
+                printf("✔ PUSH_ACK recebido!\n");
+                return;
+            }
+        }
+
+        printf("⚠ Recebido pacote desconhecido ou token incorreto\n");
+    } else {
+        printf("✖ Timeout esperando PUSH_ACK\n");
     }
-    return NULL;
 }
 
 void send_push_data(cJSON *rxpk_array) {
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddItemToObject(root, "rxpk", rxpk_array); // transfere propriedade
+    if (!root) return;
+
+    cJSON_AddItemToObject(root, "rxpk", rxpk_array);
 
     char *json_str = cJSON_PrintUnformatted(root);
-    size_t json_len = strlen(json_str);
+    if (!json_str) {
+        cJSON_Delete(root);
+        return;
+    }
 
-    uint8_t buf[12 + json_len];
-    build_header(buf, token(), 0x00); // PUSH_DATA
+    size_t json_len = strlen(json_str);
+    size_t packet_size = 12 + json_len;
+    uint8_t *buf = malloc(packet_size);
+    if (!buf) {
+        free(json_str);
+        cJSON_Delete(root);
+        return;
+    }
+
+    uint16_t tk = token();
+    build_header(buf, tk, 0x00);
     memcpy(buf + 12, json_str, json_len);
 
-    sendto(sockfd, buf, 12 + json_len, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
-    printf("Enviado PUSH_DATA (%lu bytes)\n", 12 + json_len);
+    sendto(sockfd, buf, packet_size, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    printf("Enviado PUSH_DATA (%lu bytes), aguardando ACK...\n", packet_size);
+
+    wait_for_ack(tk);
 
     free(json_str);
+    free(buf);
     cJSON_Delete(root);
 }
 
 void process_device_file(const char *path) {
+    printf("Processando arquivo: %s\n", path);
     FILE *fp = fopen(path, "r");
-    if (!fp) return;
+    if (!fp) {
+        perror("Erro ao abrir arquivo");
+        return;
+    }
 
     fseek(fp, 0, SEEK_END);
     long len = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
+    rewind(fp);
 
     char *data = malloc(len + 1);
+    if (!data) {
+        fclose(fp);
+        printf("Erro de alocação de memória\n");
+        return;
+    }
+
     fread(data, 1, len, fp);
     data[len] = '\0';
     fclose(fp);
 
     cJSON *root = cJSON_Parse(data);
+    free(data);
     if (!root) {
-        free(data);
+        printf("Erro ao interpretar JSON em: %s\n", path);
         return;
     }
 
     cJSON *rxpk = cJSON_GetObjectItem(root, "rxpk");
     if (rxpk && cJSON_IsArray(rxpk)) {
-        cJSON *rxpk_copy = cJSON_Duplicate(rxpk, 1); // duplicar pois deletamos root depois
-        send_push_data(rxpk_copy);
+        cJSON *rxpk_copy = cJSON_Duplicate(rxpk, 1);
+        if (rxpk_copy) {
+            send_push_data(rxpk_copy);
+        }
+    } else {
+        printf("JSON em %s não contém um array 'rxpk' válido\n", path);
     }
 
     cJSON_Delete(root);
-    free(data);
 }
 
 void load_config(const char *filename) {
     FILE *fp = fopen(filename, "r");
-    if (!fp) return;
+    if (!fp) {
+        perror("Erro ao abrir config.json");
+        return;
+    }
+
     fseek(fp, 0, SEEK_END);
     long len = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
+    rewind(fp);
+
     char *data = malloc(len + 1);
+    if (!data) {
+        fclose(fp);
+        return;
+    }
+
     fread(data, 1, len, fp);
     data[len] = '\0';
     fclose(fp);
 
     cJSON *cfg = cJSON_Parse(data);
-    if (!cfg) {
-        free(data);
-        return;
-    }
+    free(data);
+    if (!cfg) return;
 
     cJSON *srv = cJSON_GetObjectItem(cfg, "server");
     cJSON *prt = cJSON_GetObjectItem(cfg, "port");
-    if (cJSON_IsString(srv)) strncpy(server_address, srv->valuestring, sizeof(server_address)-1);
+    if (cJSON_IsString(srv)) strncpy(server_address, srv->valuestring, sizeof(server_address) - 1);
     if (cJSON_IsNumber(prt)) server_port = prt->valueint;
 
     cJSON_Delete(cfg);
-    free(data);
 }
 
 int main() {
-    //srand(time(NULL));
+    printf("Iniciando Envio.exe\n");
+
+    srand(time(NULL));
     load_config("config.json");
 
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -145,17 +199,31 @@ int main() {
     }
     memcpy(&server_addr.sin_addr, host->h_addr_list[0], host->h_length);
 
-    pthread_t pull_thread;
-    pthread_create(&pull_thread, NULL, pull_data_loop, NULL);
+    DIR *d;
+    struct dirent *dir;
+    // Caminho correto da pasta
+    d = opendir("/workspaces/ECOP11A-LoRaWAN/etapa5-integração-TTN/out");
+    if (d) {
+        regex_t regex;
+        regcomp(&regex, "^Saida_Dispositivo_[0-9]+\\.json$", REG_EXTENDED);
 
-    for (int i = 1; i <= MAX_DEVICES; i++) {
-        char filename[256];
-        snprintf(filename, sizeof(filename), "out/Saida_Dispositivo_%d", i);
-        process_device_file(filename);
-        usleep(500000); // 500ms
+        while ((dir = readdir(d)) != NULL) {
+            if (regexec(&regex, dir->d_name, 0, NULL, 0) == 0) {
+                // Construir o caminho completo do arquivo
+                char filepath[512];
+                snprintf(filepath, sizeof(filepath), "/workspaces/ECOP11A-LoRaWAN/etapa5-integração-TTN/out/%s", dir->d_name);
+                printf("Processando arquivo: %s\n", filepath);
+                process_device_file(filepath);
+                usleep(500000); // 500ms entre envios
+            }
+        }
+        regfree(&regex);
+        closedir(d);
+    } else {
+        perror("Erro ao abrir diretório out/");
     }
 
-    pthread_join(pull_thread, NULL);
     close(sockfd);
+    printf("Envio concluído.\n");
     return 0;
 }
