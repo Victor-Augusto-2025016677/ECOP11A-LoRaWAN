@@ -8,7 +8,7 @@ INCLUDES = -Iinclude -I/usr/include
 
 LDFLAGS = -L/usr/lib/x86_64-linux-gnu
 
-LIBS = -lmbedtls -lmbedcrypto -lmbedx509 -lcjson -lcurl
+LIBS = -lmbedtls -lmbedcrypto -lmbedx509 -lcjson -lcurl -lpthread
 
 SRC_DIR = src
 BIN_DIR = bin
