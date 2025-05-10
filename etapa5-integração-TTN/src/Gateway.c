@@ -64,7 +64,7 @@ void fecharlog() {
     }
 }
 
-int load_devices(const char *filename, cJSON **devices) {
+int load_devices(const char *filename, cJSON **devices, cJSON **root_json) {
     FILE *file = fopen(filename, "r");
     if (!file) {
         perror("Erro ao abrir o arquivo Config.json");
@@ -96,13 +96,15 @@ int load_devices(const char *filename, cJSON **devices) {
         return 0;
     }
 
-    *devices = cJSON_GetObjectItemCaseSensitive(json, "devices");
-    if (!cJSON_IsArray(*devices)) {
+    cJSON *devs = cJSON_GetObjectItemCaseSensitive(json, "devices");
+    if (!cJSON_IsArray(devs)) {
         escreverlog("Erro: 'devices' não é um array no Config.json");
         cJSON_Delete(json);
         return 0;
     }
 
+    *devices = devs;
+    *root_json = json;
     return 1;
 }
 
@@ -133,8 +135,9 @@ int main() {
     unsigned char recv_buffer[BUFFER_SIZE];
     ssize_t recv_len;
     cJSON *devices = NULL;
+    cJSON *root_json = NULL;
 
-    if (!load_devices("config/Config.json", &devices)) {
+    if (!load_devices("config/Config.json", &devices, &root_json)) {
         escreverlog("Falha ao carregar dispositivos. Encerrando...");
         return 1;
     }
@@ -195,7 +198,7 @@ int main() {
 
         char devaddr_hex[9] = {0};
         snprintf(devaddr_hex, sizeof(devaddr_hex), "%02X%02X%02X%02X", 
-                 recv_buffer[1], recv_buffer[2], recv_buffer[3], recv_buffer[4]);
+        recv_buffer[1], recv_buffer[2], recv_buffer[3], recv_buffer[4]);
 
         escreverlog("[Gateway] DevAddr extraído (hex): %s", devaddr_hex);
 
@@ -271,7 +274,7 @@ int main() {
 
     printf("[Gateway] Todos os pacotes foram processados. Encerrando...\n");
     escreverlog("[Gateway] Todos os pacotes foram processados. Encerrando");
-    cJSON_Delete(devices);
+    cJSON_Delete(root_json);
     close(sockfd);
     fecharlog();
     return 0;

@@ -42,10 +42,13 @@ int lorawan_build_uplink(
         memset(block_a, 0, 16);  // Inicializa o bloco com zeros
         block_a[0] = 0x01;  // Direção de uplink
         block_a[5] = 0x00;  // Resposta para o indicador
-        block_a[6] = (uint8_t)(devAddr & 0xFF);  // Endereço do dispositivo (LSB)
+
+        // Corrigir a ordem dos bytes para o devAddr (Little Endian para criptografia)
+        block_a[6] = (uint8_t)((devAddr >> 0) & 0xFF);   // LSB
         block_a[7] = (uint8_t)((devAddr >> 8) & 0xFF);
         block_a[8] = (uint8_t)((devAddr >> 16) & 0xFF);
-        block_a[9] = (uint8_t)((devAddr >> 24) & 0xFF);  // Endereço do dispositivo (MSB)
+        block_a[9] = (uint8_t)((devAddr >> 24) & 0xFF);  // MSB
+
         block_a[10] = (uint8_t)(fcnt & 0xFF);  // Contador de quadros (LSB)
         block_a[11] = (uint8_t)((fcnt >> 8) & 0xFF);  // Contador de quadros (MSB)
         block_a[15] = (uint8_t)((i / 16) + 1);  // Número do bloco
@@ -69,10 +72,13 @@ int lorawan_build_uplink(
     // Configura o b0 com os valores necessários para o cálculo do MIC
     b0[0] = 0x49;  // Identificador do MIC
     b0[5] = 0x00;  // Resposta para o indicador
-    b0[6] = (uint8_t)(devAddr & 0xFF);  // Endereço do dispositivo (LSB)
+
+    // Corrigir a ordem dos bytes para o devAddr (Little Endian para criptografia/MIC)
+    b0[6] = (uint8_t)((devAddr >> 0) & 0xFF);   // LSB
     b0[7] = (uint8_t)((devAddr >> 8) & 0xFF);
     b0[8] = (uint8_t)((devAddr >> 16) & 0xFF);
-    b0[9] = (uint8_t)((devAddr >> 24) & 0xFF);  // Endereço do dispositivo (MSB)
+    b0[9] = (uint8_t)((devAddr >> 24) & 0xFF);  // MSB
+
     b0[10] = (uint8_t)(fcnt & 0xFF);  // Contador de quadros (LSB)
     b0[11] = (uint8_t)((fcnt >> 8) & 0xFF);  // Contador de quadros (MSB)
     b0[15] = (uint8_t)(index);  // Tamanho total do pacote (incluindo MIC)

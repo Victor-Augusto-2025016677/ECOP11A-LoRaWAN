@@ -6,7 +6,7 @@
 			"devaddr":	"E9650C26",
 			"nwkskey":	"A46110F73D604CCE19CA981827227E35",
 			"appskey":	"92CA5FEF1A454F527708E49DFB32AFE0",
-			"fcnt":	14,
+			"fcnt":	23,
 			"fport":	10,
 			"payload":	[55, 87],
 			"gateway":	{
