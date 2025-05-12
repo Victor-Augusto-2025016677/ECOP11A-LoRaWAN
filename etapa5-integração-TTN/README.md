@@ -142,10 +142,11 @@ O simulador irá:
 5. Caso não receba, envia o pacote novamente.
 6. Caso receba corretamente, envia o proximo pacote.
 7. Após a finalização de todos os pacotes, ambos se encerram.
+8. Após isso, o programa de envio ao TTN se inicia, identifica quantos pacotes de saída foram gerados, envia um por um, e espera a confirmação de recebimento do TTN (ACK).
 
 ## Depuração
 
-Leia o terminal e se necessário, abra os logs na pasta /logs. Estão separados por tempo de execução e o nome de qual programa criou ele.
+Leia o terminal e se necessário, abra os logs na pasta /logs. Estão separados por tempo de execução e o nome de qual parte do programa criou ele.
 
 ## Limpeza
 
@@ -153,11 +154,13 @@ Execute no terminal dentro da pasta:
 
 ```bash
 
-make clean
+make clean clean2 clean3
 
 ```
 
+*Atenção, isto apaga todos os logs e saidas de execução, além de seus executavéis
+
 ## Final
 
-Funciona na minha maquina, se não funciona na sua, problema seu. (Brincadeira, só baixar as bibliotecas que funciona)
+
 
