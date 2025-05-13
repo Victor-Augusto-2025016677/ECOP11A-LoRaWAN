@@ -15,21 +15,18 @@ int lorawan_build_uplink(
 ) {
     int index = 0;
 
-    // 1. Cabeçalho de Controle (Unicast)
-    out_buffer[index++] = 0x40;  // Indicador de uplink (Unicast)
+    out_buffer[index++] = 0x40;
 
-    // Montando o devAddr corretamente (Big Endian)
-    out_buffer[index++] = (uint8_t)((devAddr >> 24) & 0xFF);  // MSB
-    out_buffer[index++] = (uint8_t)((devAddr >> 16) & 0xFF);  // Byte 3
-    out_buffer[index++] = (uint8_t)((devAddr >> 8) & 0xFF);   // Byte 2
-    out_buffer[index++] = (uint8_t)(devAddr & 0xFF);          // LSB
+    out_buffer[index++] = (uint8_t)((devAddr >> 24) & 0xFF);
+    out_buffer[index++] = (uint8_t)((devAddr >> 16) & 0xFF);
+    out_buffer[index++] = (uint8_t)((devAddr >> 8) & 0xFF);
+    out_buffer[index++] = (uint8_t)(devAddr & 0xFF);
 
-    out_buffer[index++] = 0x00;  // Reservado
-    out_buffer[index++] = (uint8_t)(fcnt & 0xFF);             // Contador de quadros (LSB)
-    out_buffer[index++] = (uint8_t)((fcnt >> 8) & 0xFF);      // Contador de quadros (MSB)
-    out_buffer[index++] = fport;  // Porta de aplicação
+    out_buffer[index++] = 0x00;
+    out_buffer[index++] = (uint8_t)(fcnt & 0xFF);
+    out_buffer[index++] = (uint8_t)((fcnt >> 8) & 0xFF);
+    out_buffer[index++] = fport;
 
-    // 2. Criptografia do Payload
     uint8_t *encrypted = &out_buffer[index];
     uint8_t block_a[16], s_block[16];
     mbedtls_aes_context aes;
@@ -37,65 +34,56 @@ int lorawan_build_uplink(
     mbedtls_aes_init(&aes);
     mbedtls_aes_setkey_enc(&aes, appSKey, 128);
 
-    // Divisão do payload em blocos de 16 bytes e criptografia
     for (int i = 0; i < payload_len; i += 16) {
-        memset(block_a, 0, 16);  // Inicializa o bloco com zeros
-        block_a[0] = 0x01;  // Direção de uplink
-        block_a[5] = 0x00;  // Resposta para o indicador
+        memset(block_a, 0, 16);
+        block_a[0] = 0x01;
+        block_a[5] = 0x00;
 
-        // Corrigir a ordem dos bytes para o devAddr (Little Endian para criptografia)
-        block_a[6] = (uint8_t)((devAddr >> 0) & 0xFF);   // LSB
+        block_a[6] = (uint8_t)((devAddr >> 0) & 0xFF);
         block_a[7] = (uint8_t)((devAddr >> 8) & 0xFF);
         block_a[8] = (uint8_t)((devAddr >> 16) & 0xFF);
-        block_a[9] = (uint8_t)((devAddr >> 24) & 0xFF);  // MSB
+        block_a[9] = (uint8_t)((devAddr >> 24) & 0xFF);
 
-        block_a[10] = (uint8_t)(fcnt & 0xFF);  // Contador de quadros (LSB)
-        block_a[11] = (uint8_t)((fcnt >> 8) & 0xFF);  // Contador de quadros (MSB)
-        block_a[15] = (uint8_t)((i / 16) + 1);  // Número do bloco
+        block_a[10] = (uint8_t)(fcnt & 0xFF);
+        block_a[11] = (uint8_t)((fcnt >> 8) & 0xFF);
+        block_a[15] = (uint8_t)((i / 16) + 1);
 
         mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_ENCRYPT, block_a, s_block);
 
-        // Criptografa o payload com a chave
         for (int j = 0; j < 16 && (i + j) < payload_len; j++) {
             encrypted[i + j] = payload[i + j] ^ s_block[j];
         }
     }
 
     mbedtls_aes_free(&aes);
-    index += payload_len;  // Atualiza o índice com o tamanho do payload criptografado
+    index += payload_len;
 
-    // 3. Cálculo do MIC (Message Integrity Code)
-    uint8_t mic[4];  // MIC de 4 bytes
+    uint8_t mic[4];
     uint8_t b0[16];
     memset(b0, 0, 16);
 
-    // Configura o b0 com os valores necessários para o cálculo do MIC
-    b0[0] = 0x49;  // Identificador do MIC
-    b0[5] = 0x00;  // Resposta para o indicador
+    b0[0] = 0x49;
+    b0[5] = 0x00;
 
-    // Corrigir a ordem dos bytes para o devAddr (Little Endian para criptografia/MIC)
-    b0[6] = (uint8_t)((devAddr >> 0) & 0xFF);   // LSB
+    b0[6] = (uint8_t)((devAddr >> 0) & 0xFF);
     b0[7] = (uint8_t)((devAddr >> 8) & 0xFF);
     b0[8] = (uint8_t)((devAddr >> 16) & 0xFF);
-    b0[9] = (uint8_t)((devAddr >> 24) & 0xFF);  // MSB
+    b0[9] = (uint8_t)((devAddr >> 24) & 0xFF);
 
-    b0[10] = (uint8_t)(fcnt & 0xFF);  // Contador de quadros (LSB)
-    b0[11] = (uint8_t)((fcnt >> 8) & 0xFF);  // Contador de quadros (MSB)
-    b0[15] = (uint8_t)(index);  // Tamanho total do pacote (incluindo MIC)
+    b0[10] = (uint8_t)(fcnt & 0xFF);
+    b0[11] = (uint8_t)((fcnt >> 8) & 0xFF);
+    b0[15] = (uint8_t)(index);
 
-    // Preparando a entrada para o CMAC
     uint8_t mic_input[256];
     memcpy(mic_input, b0, 16);
-    memcpy(mic_input + 16, out_buffer, index);  // Inclui o conteúdo do pacote (sem MIC)
+    memcpy(mic_input + 16, out_buffer, index);
 
-    // Calcular o MIC usando a função aes128_cmac
     aes128_cmac(nwkSKey, mic_input, index + 16, mic);
 
-    // Adicionar o MIC ao buffer
     out_buffer[index++] = mic[0];
     out_buffer[index++] = mic[1];
     out_buffer[index++] = mic[2];
     out_buffer[index++] = mic[3];
 
-    return index;  // Retorna o tamanho total do pacote
+    return index;
 }

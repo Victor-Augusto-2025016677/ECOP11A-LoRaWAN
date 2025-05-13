@@ -277,7 +277,6 @@ int main() {
 
     DIR *d;
     struct dirent *dir;
-    // Caminho correto da pasta
     d = opendir("/workspaces/ECOP11A-LoRaWAN/etapa5-integração-TTN/out");
     if (d) {
         regex_t regex;

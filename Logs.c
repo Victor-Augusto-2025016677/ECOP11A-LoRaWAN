@@ -1,3 +1,5 @@
+//Bloco de logs, salvo aqui só para caso use no futuro.
+
 #include <stdio.h>
 #include <stdlib.h>
 
