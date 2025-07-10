@@ -81,7 +81,7 @@ A solução permite testes locais e remotos, além de integração com plataform
 | 2 | Emulador de dispositivo com montagem e envio de pacotes LoRaWAN criptografados, configurável por JSON | ✅ Concluída | 21/04/2025 |
 | 3 | Emulador de gateway com recepção e reencaminhamento de pacotes para TTN via Semtech UDP | ✅ Concluída | 28/04/2025 |
 | 4 | Integração dos módulos: comunicação local entre dispositivo e gateway, com validação de pacotes | ✅ Concluída | 05/05/2025 |
-| 5 | Comunicação com a TTN: envio real de pacotes, recebimento de downlinks, análise completa | 🔄 Em andamento | 12/05/2025 |
+| 5 | Comunicação com a TTN: envio real de pacotes, recebimento de downlinks, análise completa | Não Concluída | 12/05/2025 |
 
 ---
 
